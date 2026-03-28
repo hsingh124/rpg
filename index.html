@@ -77,11 +77,12 @@ const MAPS = {
     ],
     npcs: [
       { x: 4, y: 5, name: 'Elder', color: C.npc, dir: 0,
+        questGive: { flag: 'elder_quest_done', item: 'elder_key' },
         dialogue: [
           "Welcome, traveler. Our village has been peaceful... until recently.",
           "Strange creatures lurk in the eastern dungeon.",
-          "The northern forest has grown dark. The southern desert hides ruins.",
-          "And the western caves... none who enter return unchanged.",
+          "I have a vault beneath the southern house. Take this key.",
+          "You'll find supplies there. You're going to need them.",
         ]},
       { x: 13, y: 7, name: 'Trader', color: C.npc2, dir: 2, trader: true,
         trades: [
@@ -172,11 +173,12 @@ const MAPS = {
       [7,7,7,7,7,7,7,7,3,3,7,7,7,7,7,7,7,7,7,7],
     ],
     npcs: [
-      { x: 5, y: 4, name: 'Nomad', color: C.npc4, dir: 0,
+      { x: 6, y: 6, name: 'Nomad', color: C.npc4, dir: 0,
+        questGive: { flag: 'temple_key', item: 'temple_key' },
         dialogue: [
           "This temple has stood for a thousand years.",
-          "The sands shift, but the stones remember.",
-          "Beware the lava pits — they weren't here before.",
+          "Its doors are sealed... but I carry the key.",
+          "Take it. See what the ancients left behind.",
         ]},
       { x: 14, y: 11, name: 'Scholar', color: C.npc, dir: 3,
         dialogue: [
@@ -270,6 +272,96 @@ const MAPS = {
     },
     exitTiles: { east: [7] },
   },
+
+  temple_interior: {
+    name: 'Sunken Temple',
+    tiles: [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,7,7,7,1,7,7,7,7,7,7,7,7,7,1,7,7,7,7,1],
+      [1,7,7,7,1,7,7,7,9,7,9,7,7,7,1,7,7,14,7,1],
+      [1,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,1],
+      [1,7,7,7,1,7,7,7,7,7,7,7,7,7,1,7,7,7,7,1],
+      [1,1,18,1,1,7,7,7,7,7,7,7,7,7,1,1,18,1,1],
+      [1,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,1],
+      [1,7,7,7,7,7,7,7,15,7,15,7,7,7,7,7,7,7,7,1],
+      [1,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,1],
+      [1,1,18,1,1,7,7,7,7,7,7,7,7,7,1,1,18,1,1],
+      [1,7,7,7,1,7,7,7,7,7,7,7,7,7,1,7,7,7,7,1],
+      [1,7,14,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,1],
+      [1,7,7,7,1,7,7,7,9,7,9,7,7,7,1,7,7,7,7,1],
+      [1,7,7,7,1,7,7,7,7,3,7,7,7,7,1,7,7,7,7,1],
+      [1,1,1,1,1,1,1,1,1,5,1,1,1,1,1,1,1,1,1,1],
+    ],
+    npcs: [
+      { x: 9, y: 7, name: 'Temple Spirit', color: '#f0d060', dir: 0,
+        dialogue: [
+          "You have entered the Sunken Temple...",
+          "Ancient guardians still roam these halls.",
+          "Defeat them, and the temple's treasure is yours.",
+        ]},
+    ],
+    exits: {},
+    exitTiles: {},
+  },
+
+  elder_basement: {
+    name: 'Elder\'s Vault',
+    tiles: [
+      [13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13],
+      [13,8,8,8,8,8,8,8,8,3,8,8,8,8,8,8,8,8,8,13],
+      [13,8,8,8,13,8,8,8,8,3,8,8,8,8,13,8,8,8,8,13],
+      [13,8,8,8,13,8,8,8,8,3,8,8,8,8,13,8,8,15,8,13],
+      [13,8,8,8,8,8,8,8,8,3,8,8,8,8,8,8,8,8,8,13],
+      [13,13,18,13,13,8,8,8,8,3,8,8,8,8,13,13,18,13,13],
+      [13,8,8,8,8,8,8,8,8,3,8,8,8,8,8,8,8,8,8,13],
+      [13,8,8,8,8,8,8,8,8,3,8,8,8,8,8,8,8,8,8,13],
+      [13,8,8,8,8,8,8,8,8,3,8,8,8,8,8,8,8,8,8,13],
+      [13,13,18,13,13,8,8,8,8,3,8,8,8,8,13,13,18,13,13],
+      [13,8,8,8,8,8,8,8,8,3,8,8,8,8,8,8,8,8,8,13],
+      [13,8,15,8,13,8,8,8,8,3,8,8,8,8,13,8,8,8,8,13],
+      [13,8,8,8,13,8,8,8,8,3,8,8,8,8,13,8,8,8,8,13],
+      [13,8,8,8,8,8,8,8,8,3,8,8,8,8,8,8,8,8,8,13],
+      [13,13,13,13,13,13,13,13,13,5,13,13,13,13,13,13,13,13,13,13],
+    ],
+    npcs: [
+      { x: 9, y: 7, name: 'Guardian', color: '#aaaacc', dir: 0,
+        dialogue: [
+          "The Elder entrusted me to guard this vault.",
+          "You have proven yourself worthy, traveler.",
+          "Take what you need. The fight ahead is dire.",
+        ]},
+    ],
+    exits: {},
+    exitTiles: {},
+  },
+};
+
+// --- GAME FLAGS (quest/unlock state) ---
+const gameFlags = {};
+function setFlag(f) { gameFlags[f] = true; }
+function hasFlag(f) { return !!gameFlags[f]; }
+
+// --- DOOR PORTALS (doors that lead to interior maps) ---
+const DOOR_PORTALS = {
+  desert: [
+    { x: 5, y: 4, map: 'temple_interior', spawnX: 9, spawnY: 13,
+      locked: true, unlockFlag: 'temple_key',
+      lockedMsg: "The temple door is sealed. The Nomad might know how to open it." },
+  ],
+  village: [
+    { x: 14, y: 12, map: 'elder_basement', spawnX: 9, spawnY: 13,
+      locked: true, unlockFlag: 'elder_quest_done',
+      lockedMsg: "The door is locked. The Elder might have a key." },
+  ],
+  // Exit doors (always unlocked) — return to parent map
+  temple_interior: [
+    { x: 9, y: 14, map: 'desert', spawnX: 5, spawnY: 5,
+      locked: false },
+  ],
+  elder_basement: [
+    { x: 9, y: 14, map: 'village', spawnX: 14, spawnY: 13,
+      locked: false },
+  ],
 };
 
 // --- ITEM DEFINITIONS ---
@@ -289,6 +381,8 @@ const ITEMS = {
   shadow_blade: { name: 'Shadow Blade',  color: '#6644aa', icon: 'sword', desc: 'Pulses with dark energy. +10 ATK', weapon: true, atk: 10 },
   fire_staff:   { name: 'Fire Staff',    color: '#e07030', icon: 'staff', desc: 'Burns with inner flame. +8 ATK', weapon: true, atk: 8 },
   gun:          { name: 'Pulse Gun',    color: '#55ddff', icon: 'gun',   desc: 'Fires energy bolts. Press F to shoot!' },
+  temple_key:   { name: 'Temple Key',   color: '#f0d060', icon: 'key',   desc: 'An ancient key. Opens the desert temple.' },
+  elder_key:    { name: 'Elder Key',    color: '#b0b0b8', icon: 'key',   desc: 'Key to the Elder\'s basement.' },
 };
 
 // Ground items per map (mutable - removed on pickup)
@@ -326,6 +420,16 @@ const MAP_ITEMS = {
     { x: 8, y: 11, item: 'fire_staff' },
     { x: 3, y: 12, item: 'potion' },
     { x: 16, y: 3, item: 'coin' },
+  ],
+  temple_interior: [
+    { x: 3, y: 1, item: 'potion' },
+    { x: 16, y: 1, item: 'potion' },
+    { x: 9, y: 6, item: 'shadow_blade' },
+  ],
+  elder_basement: [
+    { x: 3, y: 13, item: 'potion' },
+    { x: 17, y: 3, item: 'iron_sword' },
+    { x: 2, y: 7, item: 'scroll' },
   ],
 };
 
@@ -369,6 +473,21 @@ const MAP_ENEMIES = {
     { x: 10, y: 10, type: 'bat' },
     { x: 4, y: 11, type: 'spider' },
     { x: 16, y: 8, type: 'bat' },
+  ],
+  temple_interior: [
+    { x: 3, y: 3, type: 'scorpion' },
+    { x: 16, y: 3, type: 'scorpion' },
+    { x: 5, y: 8, type: 'shade' },
+    { x: 14, y: 8, type: 'shade' },
+    { x: 9, y: 4, type: 'skeleton' },
+    { x: 3, y: 10, type: 'skeleton' },
+    { x: 16, y: 10, type: 'scorpion' },
+  ],
+  elder_basement: [
+    { x: 3, y: 4, type: 'skeleton' },
+    { x: 16, y: 4, type: 'shade' },
+    { x: 5, y: 10, type: 'skeleton' },
+    { x: 14, y: 10, type: 'shade' },
   ],
 };
 
@@ -552,7 +671,6 @@ function tryPickupItem() {
 
 function handleInteract() {
   if (dialogueState) {
-    // If this NPC is a trader and we've reached end of dialogue, open trade
     const npc = dialogueState.npc;
     dialogueState.line++;
     if (dialogueState.line >= npc.dialogue.length) {
@@ -562,19 +680,69 @@ function handleInteract() {
         tradeNpc = npc;
         tradeCursor = 0;
       }
+      // Quest giving — grant flag + item on dialogue end
+      if (npc.questGive && !hasFlag(npc.questGive.flag)) {
+        setFlag(npc.questGive.flag);
+        if (npc.questGive.item) {
+          player.inventory.push(npc.questGive.item);
+          showMessage(`Received ${ITEMS[npc.questGive.item].name}!`);
+        }
+      }
     }
     return;
   }
   // Try pickup at feet first
   tryPickupItem();
 
+  // Check if standing on a door portal
+  if (tryDoorPortal(player.x, player.y)) return;
+
   let tx = player.x, ty = player.y;
   if (player.dir === 0) ty++;
   else if (player.dir === 3) ty--;
   else if (player.dir === 1) tx--;
   else if (player.dir === 2) tx++;
+
+  // NPCs take priority over door portals on the facing tile
   for (const npc of currentMap().npcs) {
     if (npc.x === tx && npc.y === ty) { dialogueState = { npc, line: 0 }; return; }
+  }
+
+  // Then check facing tile for door portal
+  if (tryDoorPortal(tx, ty)) return;
+}
+
+function tryDoorPortal(tx, ty) {
+  const portals = DOOR_PORTALS[currentMapId];
+  if (!portals) return false;
+  for (const p of portals) {
+    if (p.x === tx && p.y === ty) {
+      if (p.locked && !hasFlag(p.unlockFlag)) {
+        showMessage(p.lockedMsg || "It's locked.");
+        return true;
+      }
+      startTransition({ map: p.map, spawnX: p.spawnX, spawnY: p.spawnY });
+      return true;
+    }
+  }
+  return false;
+}
+
+function checkDoorPortalAuto() {
+  // Auto-enter when walking onto a door tile that has a portal
+  const tile = currentMap().tiles[player.y]?.[player.x];
+  if (tile !== 5) return; // Only door tiles
+  const portals = DOOR_PORTALS[currentMapId];
+  if (!portals) return;
+  for (const p of portals) {
+    if (p.x === player.x && p.y === player.y) {
+      if (p.locked && !hasFlag(p.unlockFlag)) {
+        showMessage(p.lockedMsg || "It's locked.");
+        return;
+      }
+      startTransition({ map: p.map, spawnX: p.spawnX, spawnY: p.spawnY });
+      return;
+    }
   }
 }
 
@@ -998,6 +1166,7 @@ function update(dt) {
       player.moving = false;
       player.moveT = 0;
       tryPickupItem();
+      checkDoorPortalAuto();
       checkScreenTransition();
     }
     return;
@@ -1727,9 +1896,17 @@ function drawItemIcon(px, py, itemId, size) {
     ctx.fillRect(px + s*0.1, cy - 3, s*0.35, 7);
     ctx.fillStyle = '#666';
     ctx.fillRect(px + s*0.3, cy + 3, s*0.12, s*0.25);
-    // Muzzle glow
     ctx.fillStyle = 'rgba(85,221,255,0.5)';
     ctx.beginPath(); ctx.arc(px + s*0.85, cy, 3, 0, Math.PI*2); ctx.fill();
+  } else if (item.icon === 'key') {
+    ctx.fillStyle = item.color;
+    ctx.beginPath(); ctx.arc(px + s*0.3, py + s*0.35, s*0.2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath(); ctx.arc(px + s*0.3, py + s*0.35, s*0.1, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = item.color;
+    ctx.fillRect(px + s*0.4, py + s*0.3, s*0.45, s*0.12);
+    ctx.fillRect(px + s*0.7, py + s*0.3, s*0.1, s*0.25);
+    ctx.fillRect(px + s*0.55, py + s*0.3, s*0.1, s*0.2);
   } else {
     ctx.fillRect(px + 2, py + 2, s - 4, s - 4);
   }

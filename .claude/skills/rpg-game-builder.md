@@ -24,7 +24,12 @@ Ask them the following questions to customize their game. Present these as a num
 10. **Trading** — Should there be a trader NPC? What trades do they offer? (e.g., 3 herbs -> 1 potion)
 11. **Player character** — Name, starting HP/MP, base ATK?
 12. **Color palette preference** — Vibrant, muted/dark, pastel, neon, monochrome?
-13. **Any special mechanics?** — Locked doors needing keys, boss fights, puzzle elements, day/night cycle, etc.
+13. **Enterable buildings/structures?** — Should any buildings, temples, or structures on the map be enterable? Each opens an interior dungeon map. Ask:
+    - Which structures? (temples, houses, castles, caves, tombs, labs, etc.)
+    - Should any be locked initially? What unlocks them? (quest from NPC, key item, defeating a boss, etc.)
+    - What's inside? (enemies, loot, story NPCs, boss fight, etc.)
+14. **Quests** — Any quest chains? An NPC can give a key/flag that unlocks a door or triggers a story beat. Simple flag-based system (talk to NPC -> get key -> door unlocks).
+15. **Any other special mechanics?** — Boss fights, puzzle elements, day/night cycle, etc.
 
 ## Architecture — Single HTML File
 
@@ -371,6 +376,119 @@ function drawTransition() {
 }
 ```
 
+## Game Flags & Quest System
+
+A simple flag-based system for quests, locked doors, and story progression. Flags are string keys stored in a global object.
+
+```js
+const gameFlags = {};
+function setFlag(f) { gameFlags[f] = true; }
+function hasFlag(f) { return !!gameFlags[f]; }
+```
+
+**NPCs can give quests** by having a `questGive` property. When the player finishes their dialogue, the flag is set and the item is given:
+
+```js
+{ x: 5, y: 4, name: 'Nomad', color: C.npc4, dir: 0,
+  questGive: { flag: 'temple_key', item: 'temple_key' },
+  dialogue: [
+    "This temple has stood for a thousand years.",
+    "Its doors are sealed... but I carry the key.",
+    "Take it. See what the ancients left behind.",
+  ]},
+```
+
+In `handleInteract`, after dialogue ends:
+```js
+if (npc.questGive && !hasFlag(npc.questGive.flag)) {
+  setFlag(npc.questGive.flag);
+  if (npc.questGive.item) {
+    player.inventory.push(npc.questGive.item);
+    showMessage(`Received ${ITEMS[npc.questGive.item].name}!`);
+  }
+}
+```
+
+Flags are checked once — the quest item is only given the first time. Use flag names that match the `unlockFlag` on locked doors.
+
+## Door Portals (Enterable Buildings/Structures)
+
+Buildings, temples, and structures on maps can have doors (tile 5) that transport the player to interior maps. This uses a `DOOR_PORTALS` object separate from edge-based `exits`.
+
+```js
+const DOOR_PORTALS = {
+  desert: [
+    { x: 5, y: 4, map: 'temple_interior', spawnX: 9, spawnY: 13,
+      locked: true, unlockFlag: 'temple_key',
+      lockedMsg: "The temple door is sealed. The Nomad might know how to open it." },
+  ],
+  // Exit doors inside interiors (always unlocked — let the player leave)
+  temple_interior: [
+    { x: 9, y: 14, map: 'desert', spawnX: 5, spawnY: 5,
+      locked: false },
+  ],
+};
+```
+
+**Portal properties:**
+- `x, y` — The door tile position on the map
+- `map` — Target map ID to transition to
+- `spawnX, spawnY` — Where the player appears in the target map
+- `locked` — If true, requires `unlockFlag` to be set in `gameFlags`
+- `unlockFlag` — The flag name to check (set by quest NPCs)
+- `lockedMsg` — Message shown when the player tries a locked door
+
+**How portals work:**
+1. When the player **walks onto a door tile (5)**, `checkDoorPortalAuto()` runs
+2. If a portal exists at that position: check if locked
+3. If unlocked (or flag is set): trigger `startTransition()` to the interior map
+4. If locked: show the `lockedMsg` message
+5. The player can also press **Space** to trigger a door, but **NPCs always take priority** over door portals on the facing tile. The interact order is: (1) door portal at player's feet, (2) NPC on facing tile, (3) door portal on facing tile
+
+```js
+function checkDoorPortalAuto() {
+  const tile = currentMap().tiles[player.y]?.[player.x];
+  if (tile !== 5) return; // Only door tiles
+  const portals = DOOR_PORTALS[currentMapId];
+  if (!portals) return;
+  for (const p of portals) {
+    if (p.x === player.x && p.y === player.y) {
+      if (p.locked && !hasFlag(p.unlockFlag)) {
+        showMessage(p.lockedMsg || "It's locked.");
+        return;
+      }
+      startTransition({ map: p.map, spawnX: p.spawnX, spawnY: p.spawnY });
+      return;
+    }
+  }
+}
+```
+
+**Interior map design rules:**
+- Interior maps use the same 20x15 tile grid as all maps
+- Place a door tile (5) at the bottom edge for the exit back to the parent map
+- Add a matching portal entry in `DOOR_PORTALS` for the interior map pointing back
+- Exit portals should NEVER be locked (don't trap the player inside!)
+- Interior maps need their own entries in `MAP_ENEMIES` and `MAP_ITEMS`
+- They can have NPCs, items, enemies — everything a normal map has
+- They do NOT need entries in the parent map's `exits`/`exitTiles` (those are for edge-based transitions only)
+- Common interior types: dungeon rooms, temple chambers, basements, caves, boss arenas
+- The parent map's door tile position and the interior exit portal's spawn position should align logically
+
+**Quest flow example:**
+1. Player talks to NPC -> NPC gives key item + sets flag `temple_key`
+2. Player goes to desert temple door (tile 5 at x:5, y:4)
+3. `checkDoorPortalAuto` checks `hasFlag('temple_key')` -> true
+4. Player transitions to `temple_interior` map
+5. After exploring, player walks to exit door (tile 5 at x:9, y:14)
+6. `checkDoorPortalAuto` -> portal is `locked: false` -> transitions back to desert
+
+**Lock types you can implement:**
+- **Key from NPC dialogue** (questGive): Talk to NPC, get key, door unlocks
+- **Item-based**: Check if player has specific item in inventory before allowing entry
+- **Kill-based**: Set a flag when all enemies on a map are dead
+- **Boss-based**: Set a flag when a specific enemy type is killed
+
 ## Combat System
 
 ### Option A: Dash-Slash (Hyper Light Drifter style)
@@ -612,6 +730,12 @@ When building the game, ensure you customize ALL of these based on user answers:
 - [ ] Area name box width is measured AFTER setting font (use `ctx.font` before `ctx.measureText`)
 - [ ] Exit tiles on map edges actually exist as walkable tiles in the tile grid
 - [ ] Starting area is safe (no enemies)
+- [ ] Door portals have matching entries for BOTH directions (parent -> interior AND interior -> parent)
+- [ ] Interior exit portals are NEVER locked (don't trap the player!)
+- [ ] Quest NPCs have `questGive` with matching `flag` and `unlockFlag` on the door they unlock
+- [ ] Interior maps have entries in `MAP_ENEMIES` and `MAP_ITEMS` (even if empty arrays)
+- [ ] Locked door messages hint at how to unlock them
+- [ ] Quest flags are only granted once (checked with `!hasFlag()`)
 
 ## Common Pitfalls to Avoid
 
@@ -624,3 +748,9 @@ When building the game, ensure you customize ALL of these based on user answers:
 7. **NPC placement**: Don't place on path tiles (tile 3) or the player will struggle to walk past
 8. **Dash through NPCs**: The dash-slash stops at NPCs (can't phase through them) but does pass through enemies (damaging them)
 9. **Menu input blocking**: When inventory/trade/dialogue is open, movement keys should be consumed by menu navigation, not movement
+10. **Door portal mismatches**: Every interior map needs a `DOOR_PORTALS` exit entry back to the parent. The `spawnX/spawnY` on the exit should land the player just outside the door on the parent map, not on the door itself (or they'll re-enter immediately)
+11. **Flag naming**: The `unlockFlag` on a door portal MUST exactly match the `flag` in the NPC's `questGive`
+12. **Missing MAP_ENEMIES/MAP_ITEMS entries**: Every map ID that exists in `MAPS` must also have an entry in `MAP_ENEMIES` and `MAP_ITEMS` (use empty array `[]` if no enemies/items)
+13. **Door spawn direction**: When entering a building, `spawnY` should place the player near the EXIT door inside (usually bottom, y:13), NOT at the top of the interior. The player should feel like they walked through the door. For a door at the bottom of an interior (y:14), spawn at y:13. For a door at the top (y:0), spawn at y:1.
+14. **NPC vs door portal priority**: In `handleInteract`, ALWAYS check NPCs on the facing tile BEFORE checking door portals on the facing tile. Otherwise an NPC standing near/on a door tile becomes untalkable because the portal intercepts the interaction. Only check door portals on the player's own tile (standing on it) before NPCs. The order must be: (1) door portal at player's feet, (2) NPC on facing tile, (3) door portal on facing tile.
+15. **NEVER place NPCs on door portal tiles**: NPCs block movement via `canMove()`, so placing an NPC on a door tile (5) that has a `DOOR_PORTALS` entry means the player can NEVER walk onto that tile — `checkDoorPortalAuto` never fires, locked messages never show, and the door is permanently inaccessible even after getting the key. Always place quest NPCs on an adjacent walkable tile (e.g., one tile south of the door). This is the #1 cause of "can't enter building" and "no locked message" bugs.
