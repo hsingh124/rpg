@@ -888,10 +888,10 @@ function drawUI() {
   ctx.fillText(`XP ${player.xp}/${player.maxXp}`, pad + 10, pad + 60);
 
   // Area name
-  ctx.fillStyle = 'rgba(20,20,40,0.7)';
+  ctx.font = 'bold 12px monospace';
   const areaName = currentMap().name;
   const nameW = ctx.measureText(areaName).width + 20;
-  ctx.font = 'bold 12px monospace';
+  ctx.fillStyle = 'rgba(20,20,40,0.7)';
   ctx.fillRect(canvas.width - nameW - pad, pad, nameW, 22);
   ctx.strokeStyle = C.uiBorder;
   ctx.strokeRect(canvas.width - nameW - pad, pad, nameW, 22);
