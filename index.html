@@ -83,11 +83,17 @@ const MAPS = {
           "The northern forest has grown dark. The southern desert hides ruins.",
           "And the western caves... none who enter return unchanged.",
         ]},
-      { x: 13, y: 7, name: 'Merchant', color: C.npc2, dir: 2,
+      { x: 13, y: 7, name: 'Trader', color: C.npc2, dir: 2, trader: true,
+        trades: [
+          { give: 'herb',     giveQty: 3, receive: 'potion',  receiveQty: 1, desc: '3 Herb  ->  1 Potion' },
+          { give: 'mushroom', giveQty: 2, receive: 'gem',     receiveQty: 1, desc: '2 Glow Shroom  ->  1 Shadow Gem' },
+          { give: 'fossil',   giveQty: 2, receive: 'scroll',  receiveQty: 1, desc: '2 Fossil  ->  1 Old Scroll' },
+          { give: 'crystal',  giveQty: 3, receive: 'coin',    receiveQty: 2, desc: '3 Cave Crystal  ->  2 Gold Coin' },
+          { give: 'gem',      giveQty: 2, receive: 'potion',  receiveQty: 3, desc: '2 Shadow Gem  ->  3 Potion' },
+        ],
         dialogue: [
-          "Ah, a customer! Well... I would sell you something...",
-          "But I seem to have misplaced my entire inventory.",
-          "Check back later, will you?",
+          "Welcome to my shop! I trade goods from all over.",
+          "Bring me materials and I'll craft something useful!",
         ]},
       { x: 7, y: 12, name: 'Guard', color: C.npc3, dir: 3,
         dialogue: [
@@ -266,12 +272,64 @@ const MAPS = {
   },
 };
 
+// --- ITEM DEFINITIONS ---
+const ITEMS = {
+  herb:       { name: 'Herb',         color: '#5cb85c', icon: 'herb',    desc: 'A fragrant healing herb.' },
+  mushroom:   { name: 'Glow Shroom',  color: '#c050c0', icon: 'shroom',  desc: 'A faintly glowing mushroom.' },
+  fossil:     { name: 'Fossil',       color: '#c4a866', icon: 'fossil',  desc: 'An ancient fossilized shell.' },
+  gem:        { name: 'Shadow Gem',   color: '#8866cc', icon: 'gem',     desc: 'A gem pulsing with dark energy.' },
+  crystal:    { name: 'Cave Crystal', color: '#70b0e0', icon: 'crystal', desc: 'A humming crystal shard.' },
+  potion:     { name: 'Potion',       color: '#e74c3c', icon: 'potion',  desc: 'Restores a small amount of HP.' },
+  scroll:     { name: 'Old Scroll',   color: '#e8d5a0', icon: 'scroll',  desc: 'Covered in faded runes.' },
+  feather:    { name: 'Dark Feather', color: '#2a2a3a', icon: 'feather', desc: 'Dropped by a shadow bird.' },
+  coin:       { name: 'Gold Coin',    color: '#f1c40f', icon: 'coin',    desc: 'Shiny and valuable.' },
+};
+
+// Ground items per map (mutable - removed on pickup)
+const MAP_ITEMS = {
+  village: [
+    { x: 1, y: 9, item: 'herb' },
+    { x: 17, y: 3, item: 'herb' },
+    { x: 6, y: 13, item: 'coin' },
+  ],
+  forest: [
+    { x: 3, y: 4, item: 'mushroom' },
+    { x: 10, y: 3, item: 'mushroom' },
+    { x: 16, y: 8, item: 'herb' },
+    { x: 1, y: 11, item: 'feather' },
+    { x: 13, y: 11, item: 'mushroom' },
+  ],
+  desert: [
+    { x: 3, y: 2, item: 'fossil' },
+    { x: 11, y: 6, item: 'fossil' },
+    { x: 16, y: 13, item: 'scroll' },
+    { x: 7, y: 11, item: 'coin' },
+    { x: 2, y: 8, item: 'fossil' },
+  ],
+  dungeon: [
+    { x: 3, y: 2, item: 'gem' },
+    { x: 16, y: 6, item: 'gem' },
+    { x: 7, y: 10, item: 'potion' },
+    { x: 15, y: 12, item: 'scroll' },
+    { x: 10, y: 8, item: 'gem' },
+  ],
+  caves: [
+    { x: 5, y: 3, item: 'crystal' },
+    { x: 15, y: 6, item: 'crystal' },
+    { x: 8, y: 11, item: 'crystal' },
+    { x: 3, y: 12, item: 'potion' },
+    { x: 16, y: 3, item: 'coin' },
+  ],
+};
+
 // Player
 const player = {
   x: 9, y: 9, dir: 0,
   hp: 20, maxHp: 20, mp: 10, maxMp: 10, xp: 0, maxXp: 50, level: 1,
   name: 'Hero', moving: false, moveT: 0, fromX: 9, fromY: 9,
   animFrame: 0, animTimer: 0, speed: 6, runSpeed: 12,
+  inventory: [], // array of item ids
+  gold: 0,
 };
 
 // Current map state
@@ -289,12 +347,52 @@ let dialogueState = null;
 let messageQueue = [];
 let currentMessage = null;
 let messageTimer = 0;
+let inventoryOpen = false;
+let inventoryCursor = 0;
+let tradeOpen = false;
+let tradeCursor = 0;
+let tradeNpc = null;
 
 // Input
 window.addEventListener('keydown', e => {
   const c = e.code;
   if (!keys[c]) { keys[c] = true; keyOrder.push(c); }
-  if (c === 'Space' || c === 'Enter') { e.preventDefault(); handleInteract(); }
+
+  // Inventory toggle
+  if (c === 'KeyI' || c === 'Tab') {
+    e.preventDefault();
+    if (tradeOpen) return;
+    inventoryOpen = !inventoryOpen;
+    inventoryCursor = 0;
+    return;
+  }
+  // Escape closes any open menu
+  if (c === 'Escape') {
+    if (tradeOpen) { tradeOpen = false; tradeNpc = null; return; }
+    if (inventoryOpen) { inventoryOpen = false; return; }
+    if (dialogueState) { dialogueState = null; return; }
+    return;
+  }
+
+  if (c === 'Space' || c === 'Enter') {
+    e.preventDefault();
+    if (tradeOpen) { executeTrade(); return; }
+    if (inventoryOpen) return; // Space does nothing in inventory
+    handleInteract();
+    return;
+  }
+
+  // Menu navigation
+  if (inventoryOpen || tradeOpen) {
+    if (c === 'ArrowUp' || c === 'KeyW') {
+      if (inventoryOpen) inventoryCursor = Math.max(0, inventoryCursor - 1);
+      if (tradeOpen) tradeCursor = Math.max(0, tradeCursor - 1);
+    }
+    if (c === 'ArrowDown' || c === 'KeyS') {
+      if (inventoryOpen) inventoryCursor = Math.min(getInventoryDisplay().length - 1, inventoryCursor + 1);
+      if (tradeOpen && tradeNpc) tradeCursor = Math.min(tradeNpc.trades.length - 1, tradeCursor + 1);
+    }
+  }
 });
 window.addEventListener('keyup', e => {
   const c = e.code;
@@ -302,12 +400,73 @@ window.addEventListener('keyup', e => {
   keyOrder = keyOrder.filter(k => k !== c);
 });
 
+// Returns grouped inventory: [{id, item, qty}]
+function getInventoryDisplay() {
+  const counts = {};
+  for (const id of player.inventory) {
+    counts[id] = (counts[id] || 0) + 1;
+  }
+  return Object.entries(counts).map(([id, qty]) => ({ id, item: ITEMS[id], qty }));
+}
+
+function countItem(id) {
+  return player.inventory.filter(i => i === id).length;
+}
+
+function removeItems(id, qty) {
+  let removed = 0;
+  player.inventory = player.inventory.filter(i => {
+    if (i === id && removed < qty) { removed++; return false; }
+    return true;
+  });
+}
+
+function addItems(id, qty) {
+  for (let i = 0; i < qty; i++) player.inventory.push(id);
+}
+
+function executeTrade() {
+  if (!tradeNpc || !tradeNpc.trades[tradeCursor]) return;
+  const t = tradeNpc.trades[tradeCursor];
+  if (countItem(t.give) >= t.giveQty) {
+    removeItems(t.give, t.giveQty);
+    addItems(t.receive, t.receiveQty);
+    showMessage(`Traded! Received ${t.receiveQty}x ${ITEMS[t.receive].name}`);
+  } else {
+    showMessage(`Not enough ${ITEMS[t.give].name}! Need ${t.giveQty}.`);
+  }
+}
+
+function tryPickupItem() {
+  const items = MAP_ITEMS[currentMapId];
+  if (!items) return;
+  for (let i = items.length - 1; i >= 0; i--) {
+    if (items[i].x === player.x && items[i].y === player.y) {
+      const picked = items.splice(i, 1)[0];
+      player.inventory.push(picked.item);
+      showMessage(`Picked up ${ITEMS[picked.item].name}!`);
+    }
+  }
+}
+
 function handleInteract() {
   if (dialogueState) {
+    // If this NPC is a trader and we've reached end of dialogue, open trade
+    const npc = dialogueState.npc;
     dialogueState.line++;
-    if (dialogueState.line >= dialogueState.npc.dialogue.length) dialogueState = null;
+    if (dialogueState.line >= npc.dialogue.length) {
+      dialogueState = null;
+      if (npc.trader) {
+        tradeOpen = true;
+        tradeNpc = npc;
+        tradeCursor = 0;
+      }
+    }
     return;
   }
+  // Try pickup at feet first
+  tryPickupItem();
+
   let tx = player.x, ty = player.y;
   if (player.dir === 0) ty++;
   else if (player.dir === 3) ty--;
@@ -316,6 +475,10 @@ function handleInteract() {
   for (const npc of currentMap().npcs) {
     if (npc.x === tx && npc.y === ty) { dialogueState = { npc, line: 0 }; return; }
   }
+}
+
+function showMessage(text) {
+  messageQueue.push(text);
 }
 
 function canMove(x, y) {
@@ -381,7 +544,7 @@ function update(dt) {
   player.animTimer += dt;
   if (player.animTimer > 0.2) { player.animTimer = 0; player.animFrame = (player.animFrame + 1) % 4; }
 
-  if (dialogueState) return;
+  if (dialogueState || inventoryOpen || tradeOpen) return;
 
   if (player.moving) {
     const spd = (keys['ShiftLeft'] || keys['ShiftRight']) ? player.runSpeed : player.speed;
@@ -389,6 +552,7 @@ function update(dt) {
     if (player.moveT >= 1) {
       player.moving = false;
       player.moveT = 0;
+      tryPickupItem();
       checkScreenTransition();
     }
     return;
@@ -738,7 +902,7 @@ function drawUI() {
   ctx.fillStyle = 'rgba(255,255,255,0.4)';
   ctx.font = '10px monospace';
   ctx.textAlign = 'right';
-  ctx.fillText('WASD: Move  Shift: Run  Space: Talk', canvas.width - pad, canvas.height - pad);
+  ctx.fillText('WASD: Move  Shift: Run  Space: Talk/Pickup  I: Inventory', canvas.width - pad, canvas.height - pad);
 }
 
 function drawDialogue() {
@@ -777,6 +941,234 @@ function drawDialogue() {
   ctx.fillText(prompt, canvas.width - 20, boxY + boxH - 8);
 }
 
+function drawItemIcon(px, py, itemId, size) {
+  const item = ITEMS[itemId];
+  if (!item) return;
+  const s = size || 16;
+  const cx = px + s/2, cy = py + s/2;
+  ctx.fillStyle = item.color;
+  if (item.icon === 'herb') {
+    ctx.fillRect(px + s*0.4, py + s*0.3, s*0.15, s*0.5);
+    ctx.beginPath(); ctx.arc(cx - s*0.1, py + s*0.3, s*0.25, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + s*0.15, py + s*0.4, s*0.18, 0, Math.PI*2); ctx.fill();
+  } else if (item.icon === 'shroom') {
+    ctx.fillStyle = '#d0c8b0';
+    ctx.fillRect(cx - 1, cy, 3, s*0.35);
+    ctx.fillStyle = item.color;
+    ctx.beginPath(); ctx.arc(cx, cy, s*0.3, Math.PI, 0); ctx.fill();
+  } else if (item.icon === 'fossil') {
+    ctx.beginPath(); ctx.arc(cx, cy, s*0.35, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath(); ctx.arc(cx, cy, s*0.2, 0, Math.PI*1.5); ctx.stroke();
+  } else if (item.icon === 'gem') {
+    ctx.beginPath();
+    ctx.moveTo(cx, py + s*0.15); ctx.lineTo(px + s*0.8, cy);
+    ctx.lineTo(cx, py + s*0.85); ctx.lineTo(px + s*0.2, cy);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath(); ctx.moveTo(cx, py + s*0.2); ctx.lineTo(px + s*0.6, cy - s*0.05); ctx.lineTo(cx, cy); ctx.fill();
+  } else if (item.icon === 'crystal') {
+    ctx.beginPath();
+    ctx.moveTo(cx - s*0.15, py + s*0.8); ctx.lineTo(cx, py + s*0.1); ctx.lineTo(cx + s*0.15, py + s*0.8);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(cx - 1, py + s*0.2, 2, s*0.3);
+  } else if (item.icon === 'potion') {
+    ctx.fillRect(cx - s*0.1, py + s*0.15, s*0.2, s*0.2);
+    ctx.beginPath(); ctx.arc(cx, py + s*0.6, s*0.25, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath(); ctx.arc(cx - s*0.08, py + s*0.52, s*0.08, 0, Math.PI*2); ctx.fill();
+  } else if (item.icon === 'scroll') {
+    ctx.fillRect(px + s*0.2, py + s*0.2, s*0.6, s*0.6);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(px + s*0.3, py + s*0.3, s*0.4, 2);
+    ctx.fillRect(px + s*0.3, py + s*0.45, s*0.35, 2);
+    ctx.fillRect(px + s*0.3, py + s*0.6, s*0.25, 2);
+  } else if (item.icon === 'feather') {
+    ctx.beginPath();
+    ctx.moveTo(cx, py + s*0.1); ctx.quadraticCurveTo(px + s*0.8, cy, cx, py + s*0.9);
+    ctx.quadraticCurveTo(px + s*0.4, cy, cx, py + s*0.1);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(cx - 0.5, py + s*0.15, 1, s*0.7);
+  } else if (item.icon === 'coin') {
+    ctx.beginPath(); ctx.arc(cx, cy, s*0.3, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath(); ctx.arc(cx, cy, s*0.2, 0, Math.PI*2); ctx.stroke();
+  } else {
+    ctx.fillRect(px + 2, py + 2, s - 4, s - 4);
+  }
+}
+
+function drawGroundItems() {
+  const items = MAP_ITEMS[currentMapId];
+  if (!items) return;
+  for (const gi of items) {
+    const px = gi.x * TILE + 8, py = gi.y * TILE + 8;
+    // Bobbing animation
+    const bob = Math.sin(Date.now() / 400 + gi.x * 3 + gi.y * 7) * 3;
+    // Glow
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = ITEMS[gi.item].color;
+    ctx.beginPath();
+    ctx.arc(px + 8, py + 8 + bob, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // Icon
+    drawItemIcon(px, py + bob, gi.item, 16);
+  }
+}
+
+function drawInventory() {
+  if (!inventoryOpen) return;
+  const pad = 16;
+  const w = 280, h = 300;
+  const ox = (canvas.width - w) / 2, oy = (canvas.height - h) / 2;
+
+  // Background
+  ctx.fillStyle = 'rgba(15,15,30,0.94)';
+  ctx.fillRect(ox, oy, w, h);
+  ctx.strokeStyle = C.uiBorder;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(ox, oy, w, h);
+
+  // Title
+  ctx.fillStyle = C.uiBorder;
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('INVENTORY', ox + w/2, oy + 22);
+
+  // Divider
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath(); ctx.moveTo(ox + 10, oy + 30); ctx.lineTo(ox + w - 10, oy + 30); ctx.stroke();
+
+  const inv = getInventoryDisplay();
+  if (inv.length === 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '12px monospace';
+    ctx.fillText('Empty - explore to find items!', ox + w/2, oy + 80);
+  } else {
+    const startY = oy + 44;
+    const rowH = 28;
+    const maxVisible = Math.floor((h - 70) / rowH);
+    const scrollOffset = Math.max(0, inventoryCursor - maxVisible + 1);
+
+    for (let i = 0; i < Math.min(inv.length, maxVisible); i++) {
+      const idx = i + scrollOffset;
+      if (idx >= inv.length) break;
+      const entry = inv[idx];
+      const ry = startY + i * rowH;
+
+      // Selection highlight
+      if (idx === inventoryCursor) {
+        ctx.fillStyle = 'rgba(232,193,112,0.15)';
+        ctx.fillRect(ox + 6, ry - 4, w - 12, rowH - 2);
+        ctx.strokeStyle = C.uiBorder;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(ox + 6, ry - 4, w - 12, rowH - 2);
+      }
+
+      // Item icon
+      drawItemIcon(ox + 14, ry - 1, entry.id, 18);
+
+      // Name + qty
+      ctx.fillStyle = C.white;
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${entry.item.name}`, ox + 38, ry + 12);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.textAlign = 'right';
+      ctx.fillText(`x${entry.qty}`, ox + w - 14, ry + 12);
+    }
+
+    // Description for selected
+    if (inv[inventoryCursor]) {
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.fillRect(ox + 6, oy + h - 40, w - 12, 30);
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(inv[inventoryCursor].item.desc, ox + w/2, oy + h - 20);
+    }
+  }
+
+  // Controls hint
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('[I/Tab] Close   [W/S] Navigate', ox + w/2, oy + h - 4);
+}
+
+function drawTradeMenu() {
+  if (!tradeOpen || !tradeNpc) return;
+  const pad = 16;
+  const w = 340, h = 260;
+  const ox = (canvas.width - w) / 2, oy = (canvas.height - h) / 2;
+
+  // Background
+  ctx.fillStyle = 'rgba(15,15,30,0.94)';
+  ctx.fillRect(ox, oy, w, h);
+  ctx.strokeStyle = C.uiBorder;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(ox, oy, w, h);
+
+  // Title
+  ctx.fillStyle = C.uiBorder;
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${tradeNpc.name}'s Trades`, ox + w/2, oy + 22);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath(); ctx.moveTo(ox + 10, oy + 30); ctx.lineTo(ox + w - 10, oy + 30); ctx.stroke();
+
+  const trades = tradeNpc.trades;
+  const startY = oy + 46;
+  const rowH = 32;
+
+  for (let i = 0; i < trades.length; i++) {
+    const t = trades[i];
+    const ry = startY + i * rowH;
+    const hasEnough = countItem(t.give) >= t.giveQty;
+
+    // Selection highlight
+    if (i === tradeCursor) {
+      ctx.fillStyle = 'rgba(232,193,112,0.15)';
+      ctx.fillRect(ox + 6, ry - 4, w - 12, rowH - 2);
+      ctx.strokeStyle = C.uiBorder;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(ox + 6, ry - 4, w - 12, rowH - 2);
+    }
+
+    // Give icon
+    drawItemIcon(ox + 14, ry, t.give, 16);
+    // Arrow
+    ctx.fillStyle = hasEnough ? '#5cb85c' : '#cc5555';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${t.giveQty}x`, ox + 34, ry + 12);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('-->', ox + w/2 - 20, ry + 12);
+
+    // Receive icon
+    drawItemIcon(ox + w/2 + 14, ry, t.receive, 16);
+    ctx.fillStyle = C.white;
+    ctx.fillText(`${t.receiveQty}x`, ox + w/2 + 34, ry + 12);
+
+    // Stock info
+    ctx.fillStyle = hasEnough ? 'rgba(92,184,92,0.7)' : 'rgba(200,80,80,0.5)';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`(have ${countItem(t.give)})`, ox + w - 14, ry + 12);
+  }
+
+  // Controls
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('[W/S] Navigate  [Space] Trade  [Esc] Close', ox + w/2, oy + h - 10);
+}
+
 function drawTransition() {
   if (!transitioning) return;
   // Fade to black then back
@@ -808,6 +1200,9 @@ function gameLoop(time) {
     else drawNPCs();
   }
 
+  // Draw ground items (before trees so they appear under canopy)
+  drawGroundItems();
+
   // Redraw tree-type tiles on top for depth
   const treeTiles = new Set([4, 17]);
   for (let y = 0; y < ROWS; y++) {
@@ -818,6 +1213,8 @@ function gameLoop(time) {
 
   drawUI();
   drawDialogue();
+  drawInventory();
+  drawTradeMenu();
   drawTransition();
 
   requestAnimationFrame(gameLoop);
