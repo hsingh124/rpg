@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPG</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+  canvas { image-rendering: pixelated; border: 2px solid #333; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+// Config
+const TILE = 32;
+const COLS = 20;
+const ROWS = 15;
+canvas.width = COLS * TILE;
+canvas.height = ROWS * TILE;
+
+// Colors
+const C = {
+  grass: '#4a7a3b', grass2: '#3d6b31',
+  path: '#c4a55a', water: '#3b6d9e',
+  wall: '#7a6652', roof: '#8b3a3a',
+  door: '#5a3a1a', tree: '#2d5a1e', trunk: '#6b4226',
+  player: '#e8c170',
+  npc: '#7eb8da', npc2: '#da7e7e', npc3: '#7eda8e', npc4: '#dab87e',
+  shadow: 'rgba(0,0,0,0.2)',
+  uiBorder: '#e8c170', hpFill: '#e74c3c', hpBg: '#555',
+  mpFill: '#3498db', xpFill: '#f1c40f', white: '#fff',
+  // New biome colors
+  sand: '#d4b876', sand2: '#c4a866',
+  stoneDark: '#4a4a55', stoneLight: '#5a5a65',
+  lava: '#d44a1a', lavaGlow: '#ff6630',
+  caveFloor: '#5a5040', caveFloor2: '#504838',
+  caveWall: '#3a3530', stalac: '#6a6050',
+  dungeonFloor: '#55505a', dungeonFloor2: '#4a4550',
+  dungeonWall: '#3a3545', torch: '#f0a030',
+  darkTree: '#1a3a10', darkTrunk: '#4a3020',
+  mushroom: '#c050c0', mushroomCap: '#e070e0',
+  bones: '#c8c0b0',
+  crystal: '#70b0e0', crystalGlow: '#90d0ff',
+};
+
+// Tile types:
+// 0=grass, 1=wall, 2=water, 3=path, 4=tree, 5=door, 6=roof
+// 7=sand, 8=dungeon_floor, 9=lava, 10=cave_floor, 11=cave_wall, 12=stalagmite
+// 13=dungeon_wall, 14=bones, 15=crystal, 16=mushroom, 17=dark_tree, 18=torch_wall
+const SOLID = new Set([1, 2, 4, 6, 9, 11, 12, 13, 17]);
+
+// --- MAPS ---
+const MAPS = {
+  village: {
+    name: 'Eldergrove Village',
+    tiles: [
+      [4,4,4,4,4,4,0,0,3,3,0,0,4,4,2,2,2,4,4,4],
+      [4,0,0,0,4,0,0,0,3,3,0,0,0,4,2,2,2,2,4,4],
+      [4,0,0,0,0,0,0,0,3,3,0,0,0,0,0,2,2,0,0,4],
+      [0,0,0,1,1,1,1,0,3,3,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,1,6,6,1,0,3,3,0,1,1,1,1,1,0,0,0,0],
+      [0,0,0,1,6,6,1,0,3,3,0,1,6,6,6,1,0,0,0,0],
+      [0,0,0,1,5,5,1,0,3,3,0,1,6,6,6,1,0,0,4,0],
+      [0,0,0,0,3,3,0,0,3,3,0,1,5,5,5,1,0,0,0,0],
+      [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+      [0,0,0,0,0,0,0,0,3,3,0,0,0,0,0,0,0,0,0,0],
+      [0,0,4,0,0,0,0,0,3,3,0,0,0,1,1,1,1,0,0,0],
+      [0,0,0,0,0,0,0,0,3,3,0,0,0,1,6,6,1,0,0,4],
+      [4,0,0,0,0,4,0,0,3,3,0,0,0,1,5,5,1,0,0,0],
+      [4,4,0,0,0,0,0,0,3,3,0,0,0,0,3,3,0,0,0,4],
+      [4,4,4,0,0,4,4,0,3,3,0,0,4,0,0,0,0,4,4,4],
+    ],
+    npcs: [
+      { x: 4, y: 5, name: 'Elder', color: C.npc, dir: 0,
+        dialogue: [
+          "Welcome, traveler. Our village has been peaceful... until recently.",
+          "Strange creatures lurk in the eastern dungeon.",
+          "The northern forest has grown dark. The southern desert hides ruins.",
+          "And the western caves... none who enter return unchanged.",
+        ]},
+      { x: 13, y: 7, name: 'Merchant', color: C.npc2, dir: 2,
+        dialogue: [
+          "Ah, a customer! Well... I would sell you something...",
+          "But I seem to have misplaced my entire inventory.",
+          "Check back later, will you?",
+        ]},
+      { x: 7, y: 12, name: 'Guard', color: C.npc3, dir: 3,
+        dialogue: [
+          "I stand watch over the southern road.",
+          "The desert is harsh but holds ancient secrets.",
+          "If you're heading south, bring water!",
+        ]},
+    ],
+    // edges: direction -> { map, spawnX, spawnY }
+    exits: {
+      north: { map: 'forest', spawnX: 9, spawnY: 13 },
+      south: { map: 'desert', spawnX: 9, spawnY: 1 },
+      east:  { map: 'dungeon', spawnX: 1, spawnY: 7 },
+      west:  { map: 'caves', spawnX: 18, spawnY: 7 },
+    },
+    // which edge tiles are passable exits (column for N/S, row for E/W)
+    exitTiles: { north: [8,9], south: [8,9], east: [8], west: [0,1] },
+  },
+
+  forest: {
+    name: 'Darkwood Forest',
+    tiles: [
+      [17,17,17,17,17,10,10,17,17,17,17,17,17,10,10,17,17,17,17,17],
+      [17,10,10,17,10,10,10,10,17,17,17,10,10,10,10,10,17,17,17,17],
+      [17,10,10,10,10,16,10,10,10,17,10,10,10,16,10,10,10,17,17,17],
+      [10,10,17,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,17,10],
+      [10,10,10,10,10,10,17,10,10,10,10,17,10,10,10,10,10,10,10,10],
+      [17,10,10,10,10,10,10,10,10,10,10,10,10,10,10,17,10,10,10,17],
+      [17,17,10,10,10,10,10,10,3,3,10,10,10,10,10,10,10,10,17,17],
+      [10,10,10,10,17,10,10,10,3,3,10,10,10,17,10,10,10,10,10,10],
+      [17,10,10,10,10,10,10,10,3,3,10,10,10,10,10,10,10,10,10,17],
+      [17,17,10,10,10,10,16,10,3,3,10,16,10,10,10,10,10,17,17,17],
+      [17,10,10,10,10,10,10,10,3,3,10,10,10,10,10,17,10,10,17,17],
+      [10,10,10,10,10,17,10,10,3,3,10,10,17,10,10,10,10,10,10,10],
+      [10,10,17,10,10,10,10,10,3,3,10,10,10,10,10,10,17,10,10,10],
+      [17,10,10,10,10,10,10,10,3,3,10,10,10,10,10,10,10,10,10,17],
+      [17,17,17,10,10,17,17,10,3,3,10,17,17,10,10,17,17,17,17,17],
+    ],
+    npcs: [
+      { x: 5, y: 2, name: 'Hermit', color: C.npc4, dir: 0,
+        dialogue: [
+          "The forest... it whispers to me at night.",
+          "Glowing mushrooms appeared after the darkness came.",
+          "Something ancient stirs at the heart of these woods.",
+        ]},
+      { x: 14, y: 5, name: 'Ranger', color: C.npc3, dir: 1,
+        dialogue: [
+          "I patrol these woods, keeping travelers safe.",
+          "The creatures here are mostly harmless... mostly.",
+          "Watch for the glowing eyes between the trees.",
+        ]},
+    ],
+    exits: {
+      south: { map: 'village', spawnX: 9, spawnY: 1 },
+    },
+    exitTiles: { south: [8,9] },
+  },
+
+  desert: {
+    name: 'Sunscorch Desert',
+    tiles: [
+      [7,7,7,7,7,7,7,7,3,3,7,7,7,7,7,7,7,7,7,7],
+      [7,7,7,7,7,7,7,7,3,3,7,7,7,7,7,7,7,7,7,7],
+      [7,7,7,7,1,1,1,7,3,3,7,7,7,7,7,7,7,9,9,7],
+      [7,7,7,7,1,7,1,7,3,3,7,7,7,7,7,7,9,9,9,7],
+      [7,7,7,7,1,5,1,7,3,3,7,7,7,14,7,7,7,9,7,7],
+      [7,7,7,7,7,3,7,7,3,3,7,7,7,7,7,7,7,7,7,7],
+      [7,7,14,7,7,3,3,3,3,3,7,7,7,7,7,7,7,7,7,7],
+      [7,7,7,7,7,7,7,7,3,3,7,7,7,1,1,1,1,1,7,7],
+      [7,7,7,7,7,7,7,7,3,3,7,7,7,1,6,6,6,1,7,7],
+      [7,7,7,7,7,9,7,7,3,3,7,7,7,1,6,6,6,1,7,7],
+      [7,7,7,7,9,9,9,7,3,3,7,7,7,1,5,5,5,1,7,7],
+      [7,7,7,7,7,9,7,7,3,3,7,7,7,7,3,3,7,7,7,7],
+      [7,7,7,7,7,7,7,7,3,3,3,3,3,3,3,7,7,7,7,7],
+      [7,7,7,14,7,7,7,7,3,3,7,7,7,7,7,7,14,7,7,7],
+      [7,7,7,7,7,7,7,7,3,3,7,7,7,7,7,7,7,7,7,7],
+    ],
+    npcs: [
+      { x: 5, y: 4, name: 'Nomad', color: C.npc4, dir: 0,
+        dialogue: [
+          "This temple has stood for a thousand years.",
+          "The sands shift, but the stones remember.",
+          "Beware the lava pits — they weren't here before.",
+        ]},
+      { x: 14, y: 11, name: 'Scholar', color: C.npc, dir: 3,
+        dialogue: [
+          "I study the ancient ruins scattered across this desert.",
+          "These hieroglyphs speak of a sealed darkness.",
+          "The bones you see... are older than this civilization.",
+        ]},
+    ],
+    exits: {
+      north: { map: 'village', spawnX: 9, spawnY: 13 },
+    },
+    exitTiles: { north: [8,9] },
+  },
+
+  dungeon: {
+    name: 'Shadow Crypts',
+    tiles: [
+      [13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13],
+      [13,8,8,8,13,8,8,8,8,8,8,8,8,13,8,8,8,8,8,13],
+      [13,8,8,8,13,8,8,8,8,8,8,8,8,13,8,14,8,8,8,13],
+      [13,8,8,8,8,8,8,13,13,18,13,13,8,8,8,8,8,15,13],
+      [13,8,8,8,13,8,8,8,8,8,8,8,8,13,8,8,8,8,8,13],
+      [13,13,18,13,13,8,8,8,8,8,8,8,8,13,13,8,13,13,13],
+      [13,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,13],
+      [8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,13],
+      [13,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,13],
+      [13,13,18,13,13,8,8,8,8,8,8,8,8,13,13,8,13,13,13],
+      [13,8,8,8,13,8,8,8,8,8,8,8,8,13,8,8,8,8,8,13],
+      [13,8,14,8,8,8,8,13,13,18,13,13,8,8,8,8,8,8,13],
+      [13,8,8,8,13,8,8,8,8,8,8,8,8,13,8,8,8,15,8,13],
+      [13,8,8,8,13,8,8,8,8,8,8,8,8,13,8,8,8,8,8,13],
+      [13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13],
+    ],
+    npcs: [
+      { x: 9, y: 4, name: 'Ghost', color: '#aaaacc', dir: 0,
+        dialogue: [
+          "OoOoOo... I'm just kidding. I'm Dave.",
+          "I got lost in here three weeks ago.",
+          "The crystals glow brighter when danger is near...",
+          "Please tell my wife I said hello.",
+        ]},
+      { x: 2, y: 10, name: 'Skeleton', color: C.bones, dir: 2,
+        dialogue: [
+          "...",
+          "...I have a bone to pick with whoever built this place.",
+          "Get it? Bone? Because I'm... never mind.",
+        ]},
+    ],
+    exits: {
+      west: { map: 'village', spawnX: 18, spawnY: 8 },
+    },
+    exitTiles: { west: [7] },
+  },
+
+  caves: {
+    name: 'Crystal Caverns',
+    tiles: [
+      [11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11],
+      [11,10,10,10,11,10,10,10,10,10,10,10,11,10,10,10,10,10,10,11],
+      [11,10,15,10,11,10,10,12,10,10,10,10,11,10,10,10,10,15,10,11],
+      [11,10,10,10,10,10,10,10,10,10,10,10,10,10,10,11,10,10,10,11],
+      [11,10,10,10,11,10,10,10,10,16,10,10,11,10,10,11,10,10,10,11],
+      [11,11,10,11,11,10,10,10,10,10,10,10,11,11,10,11,11,10,10,11],
+      [11,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,11],
+      [11,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10],
+      [11,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,11],
+      [11,11,10,11,11,10,10,12,10,10,10,12,10,11,11,10,11,11,10,11],
+      [11,10,10,10,11,10,10,10,10,10,10,10,10,11,10,10,10,10,10,11],
+      [11,10,10,10,10,10,10,10,10,16,10,10,10,10,10,10,10,10,10,11],
+      [11,10,15,10,11,10,10,10,10,10,10,10,10,11,10,10,10,15,10,11],
+      [11,10,10,10,11,10,10,10,10,10,10,10,11,10,10,10,10,10,10,11],
+      [11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11],
+    ],
+    npcs: [
+      { x: 9, y: 4, name: 'Miner', color: C.npc4, dir: 0,
+        dialogue: [
+          "These crystals... they sing if you listen closely.",
+          "I've been mining here for years. Never seen anything like them.",
+          "The deeper you go, the louder they get.",
+        ]},
+      { x: 3, y: 8, name: 'Bat King', color: '#8866aa', dir: 2,
+        dialogue: [
+          "*squeak squeak*",
+          "Oh sorry, I forget myself sometimes.",
+          "I am the sovereign of these caverns. Bow before me!",
+          "...Please? Nobody ever bows.",
+        ]},
+    ],
+    exits: {
+      east: { map: 'village', spawnX: 1, spawnY: 8 },
+    },
+    exitTiles: { east: [7] },
+  },
+};
+
+// Player
+const player = {
+  x: 9, y: 9, dir: 0,
+  hp: 20, maxHp: 20, mp: 10, maxMp: 10, xp: 0, maxXp: 50, level: 1,
+  name: 'Hero', moving: false, moveT: 0, fromX: 9, fromY: 9,
+  animFrame: 0, animTimer: 0, speed: 6, runSpeed: 12,
+};
+
+// Current map state
+let currentMapId = 'village';
+let transitionAlpha = 0;
+let transitioning = false;
+let transitionTarget = null;
+
+function currentMap() { return MAPS[currentMapId]; }
+
+// Game state
+let keys = {};
+let keyOrder = [];
+let dialogueState = null;
+let messageQueue = [];
+let currentMessage = null;
+let messageTimer = 0;
+
+// Input
+window.addEventListener('keydown', e => {
+  const c = e.code;
+  if (!keys[c]) { keys[c] = true; keyOrder.push(c); }
+  if (c === 'Space' || c === 'Enter') { e.preventDefault(); handleInteract(); }
+});
+window.addEventListener('keyup', e => {
+  const c = e.code;
+  keys[c] = false;
+  keyOrder = keyOrder.filter(k => k !== c);
+});
+
+function handleInteract() {
+  if (dialogueState) {
+    dialogueState.line++;
+    if (dialogueState.line >= dialogueState.npc.dialogue.length) dialogueState = null;
+    return;
+  }
+  let tx = player.x, ty = player.y;
+  if (player.dir === 0) ty++;
+  else if (player.dir === 3) ty--;
+  else if (player.dir === 1) tx--;
+  else if (player.dir === 2) tx++;
+  for (const npc of currentMap().npcs) {
+    if (npc.x === tx && npc.y === ty) { dialogueState = { npc, line: 0 }; return; }
+  }
+}
+
+function canMove(x, y) {
+  if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return false;
+  if (SOLID.has(currentMap().tiles[y][x])) return false;
+  for (const npc of currentMap().npcs) {
+    if (npc.x === x && npc.y === y) return false;
+  }
+  return true;
+}
+
+function checkScreenTransition() {
+  const map = currentMap();
+  const exits = map.exits;
+  if (!exits) return;
+
+  // Check edges
+  if (player.y === 0 && exits.north && (map.exitTiles.north || []).includes(player.x)) {
+    startTransition(exits.north);
+  } else if (player.y === ROWS - 1 && exits.south && (map.exitTiles.south || []).includes(player.x)) {
+    startTransition(exits.south);
+  } else if (player.x === COLS - 1 && exits.east && (map.exitTiles.east || []).includes(player.y)) {
+    startTransition(exits.east);
+  } else if (player.x === 0 && exits.west && (map.exitTiles.west || []).includes(player.y)) {
+    startTransition(exits.west);
+  }
+}
+
+function startTransition(target) {
+  transitioning = true;
+  transitionTarget = target;
+  transitionAlpha = 0;
+}
+
+function updateTransition(dt) {
+  transitionAlpha += dt * 3;
+  if (transitionAlpha >= 1 && transitionTarget) {
+    // Switch map at peak darkness
+    currentMapId = transitionTarget.map;
+    player.x = transitionTarget.spawnX;
+    player.y = transitionTarget.spawnY;
+    player.fromX = player.x;
+    player.fromY = player.y;
+    player.moving = false;
+    player.moveT = 0;
+    dialogueState = null;
+    const dest = transitionTarget;
+    transitionTarget = null; // clear so we only switch once
+  }
+  if (transitionAlpha >= 2) {
+    transitioning = false;
+    transitionAlpha = 0;
+  }
+}
+
+// Update
+function update(dt) {
+  if (transitioning) { updateTransition(dt); return; }
+
+  if (currentMessage) { messageTimer -= dt; if (messageTimer <= 0) currentMessage = null; }
+  if (!currentMessage && messageQueue.length) { currentMessage = messageQueue.shift(); messageTimer = 2; }
+
+  player.animTimer += dt;
+  if (player.animTimer > 0.2) { player.animTimer = 0; player.animFrame = (player.animFrame + 1) % 4; }
+
+  if (dialogueState) return;
+
+  if (player.moving) {
+    const spd = (keys['ShiftLeft'] || keys['ShiftRight']) ? player.runSpeed : player.speed;
+    player.moveT += dt * spd;
+    if (player.moveT >= 1) {
+      player.moving = false;
+      player.moveT = 0;
+      checkScreenTransition();
+    }
+    return;
+  }
+
+  let dx = 0, dy = 0;
+  for (let i = keyOrder.length - 1; i >= 0; i--) {
+    const k = keyOrder[i];
+    if (k === 'ArrowUp' || k === 'KeyW') { dy = -1; player.dir = 3; break; }
+    if (k === 'ArrowDown' || k === 'KeyS') { dy = 1; player.dir = 0; break; }
+    if (k === 'ArrowLeft' || k === 'KeyA') { dx = -1; player.dir = 1; break; }
+    if (k === 'ArrowRight' || k === 'KeyD') { dx = 1; player.dir = 2; break; }
+  }
+
+  if ((dx || dy) && canMove(player.x + dx, player.y + dy)) {
+    player.fromX = player.x;
+    player.fromY = player.y;
+    player.x += dx;
+    player.y += dy;
+    player.moving = true;
+    player.moveT = 0;
+  }
+}
+
+// Draw helpers
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function drawTile(x, y) {
+  const t = currentMap().tiles[y][x];
+  const px = x * TILE, py = y * TILE;
+
+  // Base fill depends on tile
+  if (t === 7) { // Sand
+    ctx.fillStyle = (x + y) % 2 === 0 ? C.sand : C.sand2;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = 'rgba(0,0,0,0.04)';
+    ctx.fillRect(px + (x*7 % 20), py + (y*11 % 20), 6, 2);
+    return;
+  }
+  if (t === 8) { // Dungeon floor
+    ctx.fillStyle = (x + y) % 2 === 0 ? C.dungeonFloor : C.dungeonFloor2;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+    ctx.strokeRect(px, py, TILE, TILE);
+    return;
+  }
+  if (t === 10) { // Cave floor
+    ctx.fillStyle = (x + y) % 2 === 0 ? C.caveFloor : C.caveFloor2;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    ctx.fillRect(px + (x*13 % 24), py + (y*7 % 24), 4, 3);
+    return;
+  }
+  if (t === 11) { // Cave wall
+    ctx.fillStyle = C.caveWall;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(px, py + TILE - 4, TILE, 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(px + 2, py + 2, TILE - 4, 3);
+    return;
+  }
+  if (t === 12) { // Stalagmite
+    ctx.fillStyle = (x + y) % 2 === 0 ? C.caveFloor : C.caveFloor2;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = C.stalac;
+    ctx.beginPath();
+    ctx.moveTo(px + 8, py + TILE);
+    ctx.lineTo(px + 16, py + 4);
+    ctx.lineTo(px + 24, py + TILE);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath();
+    ctx.moveTo(px + 13, py + TILE - 4);
+    ctx.lineTo(px + 16, py + 6);
+    ctx.lineTo(px + 18, py + TILE - 4);
+    ctx.fill();
+    return;
+  }
+  if (t === 13) { // Dungeon wall
+    ctx.fillStyle = C.dungeonWall;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(px, py + TILE - 4, TILE, 4);
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.strokeRect(px + 2, py + 2, TILE - 4, TILE - 4);
+    return;
+  }
+  if (t === 14) { // Bones
+    ctx.fillStyle = (x + y) % 2 === 0 ? C.sand : C.sand2;
+    if (currentMapId === 'dungeon') ctx.fillStyle = (x + y) % 2 === 0 ? C.dungeonFloor : C.dungeonFloor2;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = C.bones;
+    ctx.fillRect(px + 6, py + 12, 18, 3);
+    ctx.fillRect(px + 10, py + 8, 3, 14);
+    ctx.fillRect(px + 18, py + 10, 3, 10);
+    // Skull
+    ctx.beginPath();
+    ctx.arc(px + 14, py + 10, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = currentMapId === 'dungeon' ? C.dungeonFloor : C.sand;
+    ctx.fillRect(px + 12, py + 9, 2, 2);
+    ctx.fillRect(px + 15, py + 9, 2, 2);
+    return;
+  }
+  if (t === 15) { // Crystal
+    const bg = currentMapId === 'caves' ? ((x+y)%2===0 ? C.caveFloor : C.caveFloor2) : ((x+y)%2===0 ? C.dungeonFloor : C.dungeonFloor2);
+    ctx.fillStyle = bg;
+    ctx.fillRect(px, py, TILE, TILE);
+    const glow = Math.sin(Date.now() / 500 + x + y) * 0.3 + 0.5;
+    ctx.fillStyle = C.crystal;
+    ctx.globalAlpha = glow + 0.4;
+    ctx.beginPath();
+    ctx.moveTo(px + 10, py + TILE);
+    ctx.lineTo(px + 14, py + 4);
+    ctx.lineTo(px + 18, py + TILE);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(px + 16, py + TILE);
+    ctx.lineTo(px + 20, py + 8);
+    ctx.lineTo(px + 24, py + TILE);
+    ctx.fill();
+    ctx.globalAlpha = glow * 0.3;
+    ctx.fillStyle = C.crystalGlow;
+    ctx.beginPath();
+    ctx.arc(px + 16, py + 12, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (t === 16) { // Mushroom (walkable)
+    const bg = currentMapId === 'caves' ? ((x+y)%2===0 ? C.caveFloor : C.caveFloor2) : ((x+y)%2===0 ? C.caveFloor : C.caveFloor2);
+    ctx.fillStyle = bg;
+    ctx.fillRect(px, py, TILE, TILE);
+    const pulse = Math.sin(Date.now() / 800 + x * 2) * 0.2 + 0.8;
+    ctx.globalAlpha = pulse;
+    // Stem
+    ctx.fillStyle = '#d0c8b0';
+    ctx.fillRect(px + 14, py + 16, 4, 12);
+    ctx.fillRect(px + 6, py + 20, 4, 8);
+    // Caps
+    ctx.fillStyle = C.mushroomCap;
+    ctx.beginPath(); ctx.arc(px + 16, py + 15, 7, Math.PI, 0); ctx.fill();
+    ctx.beginPath(); ctx.arc(px + 8, py + 19, 5, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillRect(px + 13, py + 11, 2, 2);
+    ctx.fillRect(px + 17, py + 12, 2, 2);
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (t === 17) { // Dark tree
+    ctx.fillStyle = (x + y) % 2 === 0 ? C.caveFloor : C.caveFloor2;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = C.darkTrunk;
+    ctx.fillRect(px + 12, py + 18, 8, 14);
+    ctx.fillStyle = C.darkTree;
+    ctx.beginPath();
+    ctx.arc(px + 16, py + 14, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath();
+    ctx.arc(px + 18, py + 16, 6, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  if (t === 18) { // Torch wall
+    ctx.fillStyle = currentMapId === 'dungeon' ? C.dungeonWall : C.wall;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(px, py + TILE - 4, TILE, 4);
+    // Torch
+    const flicker = Math.sin(Date.now() / 100 + x) * 2;
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(px + 14, py + 10, 4, 12);
+    ctx.fillStyle = C.torch;
+    ctx.beginPath();
+    ctx.arc(px + 16, py + 8 + flicker * 0.3, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffe080';
+    ctx.beginPath();
+    ctx.arc(px + 16, py + 7 + flicker * 0.3, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Glow
+    ctx.globalAlpha = 0.08 + Math.sin(Date.now() / 150) * 0.03;
+    ctx.fillStyle = '#ff8020';
+    ctx.beginPath();
+    ctx.arc(px + 16, py + 10, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (t === 9) { // Lava
+    ctx.fillStyle = C.lava;
+    ctx.fillRect(px, py, TILE, TILE);
+    const pulse = Math.sin(Date.now() / 300 + x + y * 2) * 0.3 + 0.7;
+    ctx.globalAlpha = pulse * 0.4;
+    ctx.fillStyle = C.lavaGlow;
+    ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = 'rgba(255,200,50,0.3)';
+    ctx.fillRect(px + ((Date.now()/400 + x*5) % TILE), py + 8, 8, 3);
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  // Default grass-based tiles (0, 1, 2, 3, 4, 5, 6)
+  ctx.fillStyle = (x + y) % 2 === 0 ? C.grass : C.grass2;
+  ctx.fillRect(px, py, TILE, TILE);
+
+  if (t === 1) {
+    ctx.fillStyle = C.wall;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(px, py + TILE - 4, TILE, 4);
+  } else if (t === 2) {
+    ctx.fillStyle = C.water;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(px + ((Date.now()/500 + x*3) % TILE), py + 8, 6, 2);
+    ctx.fillRect(px + ((Date.now()/700 + y*5) % TILE), py + 20, 4, 2);
+  } else if (t === 3) {
+    ctx.fillStyle = C.path;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+    ctx.fillRect(px + 4, py + 4, 4, 4);
+    ctx.fillRect(px + 20, py + 16, 5, 3);
+  } else if (t === 4) {
+    ctx.fillStyle = C.trunk;
+    ctx.fillRect(px + 12, py + 18, 8, 14);
+    ctx.fillStyle = C.tree;
+    ctx.beginPath();
+    ctx.arc(px + 16, py + 14, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.beginPath();
+    ctx.arc(px + 13, py + 10, 5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (t === 5) {
+    ctx.fillStyle = C.path;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = C.door;
+    ctx.fillRect(px + 4, py, TILE - 8, TILE);
+    ctx.fillStyle = '#c4a040';
+    ctx.fillRect(px + 20, py + 14, 4, 4);
+  } else if (t === 6) {
+    ctx.fillStyle = C.roof;
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.fillRect(px, py + TILE - 3, TILE, 3);
+  }
+}
+
+function drawCharacter(x, y, color, dir, frame) {
+  const px = x * TILE, py = y * TILE;
+  ctx.fillStyle = C.shadow;
+  ctx.beginPath();
+  ctx.ellipse(px + 16, py + 30, 10, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const bob = Math.sin(frame * Math.PI * 0.5) * 1.5;
+  ctx.fillStyle = color;
+  ctx.fillRect(px + 8, py + 10 + bob, 16, 16);
+  ctx.fillStyle = '#f5d5a0';
+  ctx.fillRect(px + 10, py + 2 + bob, 12, 12);
+  ctx.fillStyle = '#333';
+  if (dir === 0) {
+    ctx.fillRect(px + 12, py + 8 + bob, 3, 3);
+    ctx.fillRect(px + 18, py + 8 + bob, 3, 3);
+  } else if (dir === 3) {
+    ctx.fillStyle = '#c4a060';
+    ctx.fillRect(px + 11, py + 3 + bob, 10, 6);
+  } else if (dir === 1) {
+    ctx.fillRect(px + 10, py + 8 + bob, 3, 3);
+  } else {
+    ctx.fillRect(px + 19, py + 8 + bob, 3, 3);
+  }
+  ctx.fillStyle = '#5a4a3a';
+  ctx.fillRect(px + 10, py + 26 + bob, 5, 6);
+  ctx.fillRect(px + 17, py + 26 + bob, 5, 6);
+}
+
+function drawPlayer() {
+  let dx, dy;
+  if (player.moving) {
+    dx = lerp(player.fromX, player.x, player.moveT);
+    dy = lerp(player.fromY, player.y, player.moveT);
+  } else { dx = player.x; dy = player.y; }
+  drawCharacter(dx, dy, C.player, player.dir, player.moving ? player.animFrame : 0);
+}
+
+function drawNPCs() {
+  for (const npc of currentMap().npcs) {
+    drawCharacter(npc.x, npc.y, npc.color, npc.dir, 0);
+    ctx.fillStyle = C.white;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(npc.name, npc.x * TILE + 16, npc.y * TILE - 2);
+  }
+}
+
+function drawUI() {
+  const pad = 8, barW = 120, barH = 10;
+
+  ctx.fillStyle = 'rgba(20,20,40,0.85)';
+  ctx.fillRect(pad, pad, 160, 64);
+  ctx.strokeStyle = C.uiBorder;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(pad, pad, 160, 64);
+
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = C.white;
+  ctx.fillText(`${player.name}  Lv.${player.level}`, pad + 8, pad + 16);
+
+  ctx.fillStyle = C.hpBg;
+  ctx.fillRect(pad + 8, pad + 24, barW, barH);
+  ctx.fillStyle = C.hpFill;
+  ctx.fillRect(pad + 8, pad + 24, barW * (player.hp / player.maxHp), barH);
+  ctx.fillStyle = C.white; ctx.font = '9px monospace';
+  ctx.fillText(`HP ${player.hp}/${player.maxHp}`, pad + 10, pad + 32);
+
+  ctx.fillStyle = C.hpBg;
+  ctx.fillRect(pad + 8, pad + 38, barW, barH);
+  ctx.fillStyle = C.mpFill;
+  ctx.fillRect(pad + 8, pad + 38, barW * (player.mp / player.maxMp), barH);
+  ctx.fillStyle = C.white;
+  ctx.fillText(`MP ${player.mp}/${player.maxMp}`, pad + 10, pad + 46);
+
+  ctx.fillStyle = C.hpBg;
+  ctx.fillRect(pad + 8, pad + 52, barW, barH);
+  ctx.fillStyle = C.xpFill;
+  ctx.fillRect(pad + 8, pad + 52, barW * (player.xp / player.maxXp), barH);
+  ctx.fillStyle = C.white;
+  ctx.fillText(`XP ${player.xp}/${player.maxXp}`, pad + 10, pad + 60);
+
+  // Area name
+  ctx.fillStyle = 'rgba(20,20,40,0.7)';
+  const areaName = currentMap().name;
+  const nameW = ctx.measureText(areaName).width + 20;
+  ctx.font = 'bold 12px monospace';
+  ctx.fillRect(canvas.width - nameW - pad, pad, nameW, 22);
+  ctx.strokeStyle = C.uiBorder;
+  ctx.strokeRect(canvas.width - nameW - pad, pad, nameW, 22);
+  ctx.fillStyle = C.uiBorder;
+  ctx.textAlign = 'right';
+  ctx.fillText(areaName, canvas.width - pad - 8, pad + 15);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('WASD: Move  Shift: Run  Space: Talk', canvas.width - pad, canvas.height - pad);
+}
+
+function drawDialogue() {
+  if (!dialogueState) return;
+  const npc = dialogueState.npc;
+  const text = npc.dialogue[dialogueState.line];
+  const boxH = 80, boxY = canvas.height - boxH - 8;
+
+  ctx.fillStyle = 'rgba(20,20,40,0.92)';
+  ctx.fillRect(8, boxY, canvas.width - 16, boxH);
+  ctx.strokeStyle = C.uiBorder;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(8, boxY, canvas.width - 16, boxH);
+
+  ctx.fillStyle = C.uiBorder;
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(npc.name, 20, boxY + 20);
+
+  ctx.fillStyle = C.white;
+  ctx.font = '12px monospace';
+  const words = text.split(' ');
+  let line = '', lineY = boxY + 40;
+  for (const word of words) {
+    const test = line + word + ' ';
+    if (ctx.measureText(test).width > canvas.width - 48) {
+      ctx.fillText(line, 20, lineY); line = word + ' '; lineY += 16;
+    } else { line = test; }
+  }
+  ctx.fillText(line, 20, lineY);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'right';
+  const prompt = dialogueState.line < npc.dialogue.length - 1 ? '[Space] Continue' : '[Space] Close';
+  ctx.fillText(prompt, canvas.width - 20, boxY + boxH - 8);
+}
+
+function drawTransition() {
+  if (!transitioning) return;
+  // Fade to black then back
+  const alpha = transitionAlpha <= 1 ? transitionAlpha : 2 - transitionAlpha;
+  ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+// Main loop
+let lastTime = 0;
+function gameLoop(time) {
+  const dt = Math.min((time - lastTime) / 1000, 0.05);
+  lastTime = time;
+
+  update(dt);
+
+  const map = currentMap();
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) drawTile(x, y);
+  }
+
+  // Draw entities sorted by Y
+  const entities = [...map.npcs.map(n => ({ type: 'npc', y: n.y, data: n }))];
+  const py = player.moving ? lerp(player.fromY, player.y, player.moveT) : player.y;
+  entities.push({ type: 'player', y: py });
+  entities.sort((a, b) => a.y - b.y);
+  for (const e of entities) {
+    if (e.type === 'player') drawPlayer();
+    else drawNPCs();
+  }
+
+  // Redraw tree-type tiles on top for depth
+  const treeTiles = new Set([4, 17]);
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (treeTiles.has(map.tiles[y][x])) drawTile(x, y);
+    }
+  }
+
+  drawUI();
+  drawDialogue();
+  drawTransition();
+
+  requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
