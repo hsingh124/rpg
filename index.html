@@ -288,6 +288,7 @@ const ITEMS = {
   iron_sword:   { name: 'Iron Sword',    color: '#b0b0b8', icon: 'sword', desc: 'A sturdy iron blade. +6 ATK', weapon: true, atk: 6 },
   shadow_blade: { name: 'Shadow Blade',  color: '#6644aa', icon: 'sword', desc: 'Pulses with dark energy. +10 ATK', weapon: true, atk: 10 },
   fire_staff:   { name: 'Fire Staff',    color: '#e07030', icon: 'staff', desc: 'Burns with inner flame. +8 ATK', weapon: true, atk: 8 },
+  gun:          { name: 'Pulse Gun',    color: '#55ddff', icon: 'gun',   desc: 'Fires energy bolts. Press F to shoot!' },
 };
 
 // Ground items per map (mutable - removed on pickup)
@@ -310,7 +311,7 @@ const MAP_ITEMS = {
     { x: 11, y: 6, item: 'fossil' },
     { x: 16, y: 13, item: 'scroll' },
     { x: 7, y: 11, item: 'coin' },
-    { x: 2, y: 8, item: 'fossil' },
+    { x: 2, y: 8, item: 'gun' },
   ],
   dungeon: [
     { x: 3, y: 2, item: 'gem' },
@@ -400,10 +401,21 @@ const player = {
   equippedWeapon: null, // item id
   attacking: false, attackTimer: 0, attackCooldown: 0,
   hurtTimer: 0, iFrames: 0, // invincibility after hit
+  // Dash-slash
+  dashing: false, dashTimer: 0, dashDuration: 0.15,
+  dashFromX: 0, dashFromY: 0, dashToX: 0, dashToY: 0, dashDist: 3,
+  // Gun
+  hasGun: false, gunCooldown: 0,
 };
 
 // Floating damage numbers
 let damageFloats = [];
+// Particles (for VFX)
+let particles = [];
+// Projectiles
+let projectiles = [];
+// Afterimages for dash
+let afterimages = [];
 
 // Current map state
 let currentMapId = 'village';
@@ -447,9 +459,14 @@ window.addEventListener('keydown', e => {
     return;
   }
 
-  // Attack
+  // Dash-slash attack
   if (c === 'KeyE' || c === 'KeyX') {
-    if (!inventoryOpen && !tradeOpen && !dialogueState) { playerAttack(); }
+    if (!inventoryOpen && !tradeOpen && !dialogueState) { playerDashSlash(); }
+    return;
+  }
+  // Gun
+  if (c === 'KeyF') {
+    if (!inventoryOpen && !tradeOpen && !dialogueState) { playerShoot(); }
     return;
   }
 
@@ -522,7 +539,12 @@ function tryPickupItem() {
   for (let i = items.length - 1; i >= 0; i--) {
     if (items[i].x === player.x && items[i].y === player.y) {
       const picked = items.splice(i, 1)[0];
-      player.inventory.push(picked.item);
+      if (picked.item === 'gun') {
+        player.hasGun = true;
+        showMessage(`Found the Pulse Gun! Press F to fire!`);
+      } else {
+        player.inventory.push(picked.item);
+      }
       showMessage(`Picked up ${ITEMS[picked.item].name}!`);
     }
   }
@@ -582,45 +604,149 @@ function getPlayerAtk() {
   return atk;
 }
 
-function playerAttack() {
-  if (player.attacking || player.attackCooldown > 0) return;
-  player.attacking = true;
-  player.attackTimer = 0.2;
-  player.attackCooldown = 0.35;
+function getDirDelta(dir) {
+  if (dir === 0) return { dx: 0, dy: 1 };
+  if (dir === 3) return { dx: 0, dy: -1 };
+  if (dir === 1) return { dx: -1, dy: 0 };
+  return { dx: 1, dy: 0 };
+}
 
-  // Find target tile
-  let tx = player.x, ty = player.y;
-  if (player.dir === 0) ty++;
-  else if (player.dir === 3) ty--;
-  else if (player.dir === 1) tx--;
-  else if (player.dir === 2) tx++;
+function hitEnemy(e, dmg) {
+  e.hp -= dmg;
+  e.hurtTimer = 0.25;
+  damageFloats.push({ x: e.x * TILE + 16, y: e.y * TILE, text: `-${dmg}`, color: '#fff', timer: 0.8 });
+  // Hit particles
+  for (let p = 0; p < 6; p++) {
+    particles.push({
+      x: e.x * TILE + 16, y: e.y * TILE + 16,
+      vx: (Math.random() - 0.5) * 200, vy: (Math.random() - 0.5) * 200,
+      life: 0.3 + Math.random() * 0.2,
+      color: '#fff', size: 2 + Math.random() * 3,
+    });
+  }
+  if (e.hp <= 0) {
+    e.alive = false;
+    const et = ENEMY_TYPES[e.type];
+    player.xp += et.xp;
+    damageFloats.push({ x: e.x * TILE + 16, y: e.y * TILE - 10, text: `+${et.xp} XP`, color: '#f1c40f', timer: 1.2 });
+    // Death burst particles
+    for (let p = 0; p < 12; p++) {
+      particles.push({
+        x: e.x * TILE + 16, y: e.y * TILE + 16,
+        vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.5) * 300,
+        life: 0.4 + Math.random() * 0.3,
+        color: et.color, size: 3 + Math.random() * 4,
+      });
+    }
+    if (et.drops.length > 0) {
+      const dropId = et.drops[Math.floor(Math.random() * et.drops.length)];
+      const items = MAP_ITEMS[currentMapId];
+      if (items) items.push({ x: e.x, y: e.y, item: dropId });
+    }
+    checkLevelUp();
+  }
+}
 
+function playerDashSlash() {
+  if (player.dashing || player.attackCooldown > 0) return;
+  const { dx, dy } = getDirDelta(player.dir);
   const enemies = MAP_ENEMIES[currentMapId] || [];
-  for (const e of enemies) {
-    if (!e.alive) continue;
-    if (e.x === tx && e.y === ty) {
-      const dmg = getPlayerAtk() + Math.floor(Math.random() * 3);
-      e.hp -= dmg;
-      e.hurtTimer = 0.2;
-      damageFloats.push({ x: e.x * TILE + 16, y: e.y * TILE, text: `-${dmg}`, color: '#fff', timer: 0.8 });
-      if (e.hp <= 0) {
-        e.alive = false;
-        // XP gain
-        const et = ENEMY_TYPES[e.type];
-        player.xp += et.xp;
-        damageFloats.push({ x: e.x * TILE + 16, y: e.y * TILE - 10, text: `+${et.xp} XP`, color: '#f1c40f', timer: 1.2 });
-        // Drop item
-        if (et.drops.length > 0) {
-          const dropId = et.drops[Math.floor(Math.random() * et.drops.length)];
-          const items = MAP_ITEMS[currentMapId];
-          if (items) items.push({ x: e.x, y: e.y, item: dropId });
-        }
-        // Level up check
-        checkLevelUp();
+
+  // Find how far we can dash (up to dashDist tiles, stop at walls)
+  let dist = 0;
+  for (let i = 1; i <= player.dashDist; i++) {
+    const nx = player.x + dx * i, ny = player.y + dy * i;
+    if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) break;
+    if (SOLID.has(currentMap().tiles[ny][nx])) break;
+    // Don't stop at NPCs but can't end on them
+    const npcBlock = currentMap().npcs.some(n => n.x === nx && n.y === ny);
+    if (npcBlock) break;
+    dist = i;
+  }
+  if (dist === 0) {
+    // Can't dash, do a short slash in place instead
+    player.attacking = true;
+    player.attackTimer = 0.15;
+    player.attackCooldown = 0.3;
+    // Hit adjacent enemy
+    const tx = player.x + dx, ty = player.y + dy;
+    for (const e of enemies) {
+      if (e.alive && e.x === tx && e.y === ty) {
+        hitEnemy(e, getPlayerAtk() + Math.floor(Math.random() * 3));
+        break;
       }
-      break;
+    }
+    return;
+  }
+
+  // Start dash
+  player.dashing = true;
+  player.dashTimer = 0;
+  player.dashFromX = player.x;
+  player.dashFromY = player.y;
+  player.dashToX = player.x + dx * dist;
+  player.dashToY = player.y + dy * dist;
+  player.attacking = true;
+  player.attackTimer = player.dashDuration + 0.1;
+  player.attackCooldown = 0.3;
+  player.iFrames = player.dashDuration + 0.15; // invincible during dash
+
+  // Drop afterimage at start
+  afterimages.push({ x: player.x, y: player.y, dir: player.dir, timer: 0.3 });
+
+  // Damage all enemies in path
+  const dmg = getPlayerAtk() + Math.floor(Math.random() * 3) + 2; // dash bonus
+  for (let i = 1; i <= dist; i++) {
+    const cx = player.x + dx * i, cy = player.y + dy * i;
+    for (const e of enemies) {
+      if (e.alive && e.x === cx && e.y === cy) {
+        hitEnemy(e, dmg);
+      }
+    }
+    // Slash trail particles
+    for (let p = 0; p < 3; p++) {
+      const wColor = player.equippedWeapon ? ITEMS[player.equippedWeapon].color : '#aaddff';
+      particles.push({
+        x: cx * TILE + 16 + (Math.random() - 0.5) * 16,
+        y: cy * TILE + 16 + (Math.random() - 0.5) * 16,
+        vx: (Math.random() - 0.5) * 80 + (-dx * 60),
+        vy: (Math.random() - 0.5) * 80 + (-dy * 60),
+        life: 0.2 + Math.random() * 0.15,
+        color: wColor, size: 2 + Math.random() * 4,
+      });
     }
   }
+
+  // Move player to end
+  player.x = player.dashToX;
+  player.y = player.dashToY;
+}
+
+function playerShoot() {
+  if (!player.hasGun || player.gunCooldown > 0) return;
+  player.gunCooldown = 0.4;
+  const { dx, dy } = getDirDelta(player.dir);
+
+  // Muzzle flash particles
+  const mx = player.x * TILE + 16 + dx * 16, my = player.y * TILE + 16 + dy * 16;
+  for (let p = 0; p < 5; p++) {
+    particles.push({
+      x: mx, y: my,
+      vx: dx * 200 + (Math.random() - 0.5) * 100,
+      vy: dy * 200 + (Math.random() - 0.5) * 100,
+      life: 0.15 + Math.random() * 0.1,
+      color: '#55ddff', size: 2 + Math.random() * 3,
+    });
+  }
+
+  projectiles.push({
+    x: player.x * TILE + 16 + dx * 20,
+    y: player.y * TILE + 16 + dy * 20,
+    vx: dx * 500, vy: dy * 500,
+    life: 1.5,
+    dmg: Math.floor(getPlayerAtk() * 0.8) + 2,
+    trail: [],
+  });
 }
 
 function checkLevelUp() {
@@ -777,6 +903,18 @@ function update(dt) {
   if (player.attackCooldown > 0) player.attackCooldown -= dt;
   if (player.hurtTimer > 0) player.hurtTimer -= dt;
   if (player.iFrames > 0) player.iFrames -= dt;
+  if (player.gunCooldown > 0) player.gunCooldown -= dt;
+
+  // Dash animation
+  if (player.dashing) {
+    player.dashTimer += dt;
+    if (player.dashTimer >= player.dashDuration) {
+      player.dashing = false;
+      player.fromX = player.x;
+      player.fromY = player.y;
+      tryPickupItem();
+    }
+  }
 
   // Damage floats
   for (let i = damageFloats.length - 1; i >= 0; i--) {
@@ -785,10 +923,73 @@ function update(dt) {
     if (damageFloats[i].timer <= 0) damageFloats.splice(i, 1);
   }
 
+  // Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.life -= dt;
+    p.size *= 0.95;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Afterimages
+  for (let i = afterimages.length - 1; i >= 0; i--) {
+    afterimages[i].timer -= dt;
+    if (afterimages[i].timer <= 0) afterimages.splice(i, 1);
+  }
+
+  // Projectiles
+  const enemies = MAP_ENEMIES[currentMapId] || [];
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const pr = projectiles[i];
+    pr.trail.push({ x: pr.x, y: pr.y, life: 0.15 });
+    pr.x += pr.vx * dt; pr.y += pr.vy * dt;
+    pr.life -= dt;
+    // Trail decay
+    for (let t = pr.trail.length - 1; t >= 0; t--) {
+      pr.trail[t].life -= dt;
+      if (pr.trail[t].life <= 0) pr.trail.splice(t, 1);
+    }
+    // Check tile collision
+    const tx = Math.floor(pr.x / TILE), ty = Math.floor(pr.y / TILE);
+    if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS || SOLID.has(currentMap().tiles[ty][tx])) {
+      // Impact particles
+      for (let p = 0; p < 8; p++) {
+        particles.push({
+          x: pr.x, y: pr.y,
+          vx: (Math.random() - 0.5) * 200, vy: (Math.random() - 0.5) * 200,
+          life: 0.2 + Math.random() * 0.15, color: '#55ddff', size: 2 + Math.random() * 3,
+        });
+      }
+      projectiles.splice(i, 1); continue;
+    }
+    // Check enemy collision
+    let hit = false;
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const ex = e.x * TILE + 16, ey = e.y * TILE + 16;
+      if (Math.abs(pr.x - ex) < 14 && Math.abs(pr.y - ey) < 14) {
+        hitEnemy(e, pr.dmg);
+        // Impact burst
+        for (let p = 0; p < 8; p++) {
+          particles.push({
+            x: pr.x, y: pr.y,
+            vx: (Math.random() - 0.5) * 250, vy: (Math.random() - 0.5) * 250,
+            life: 0.25, color: '#55ddff', size: 3 + Math.random() * 3,
+          });
+        }
+        projectiles.splice(i, 1); hit = true; break;
+      }
+    }
+    if (hit) continue;
+    if (pr.life <= 0) projectiles.splice(i, 1);
+  }
+
   // Enemy AI
   enemyAI(dt);
 
   if (dialogueState || inventoryOpen || tradeOpen) return;
+  if (player.dashing) return;
 
   if (player.moving) {
     const spd = (keys['ShiftLeft'] || keys['ShiftRight']) ? player.runSpeed : player.speed;
@@ -1078,43 +1279,121 @@ function drawCharacter(x, y, color, dir, frame) {
 }
 
 function drawPlayer() {
-  // Hurt flash - blink when iframes active
-  if (player.iFrames > 0 && Math.floor(player.iFrames * 10) % 2 === 0) return;
+  // Hurt flash - blink when iframes active (but not during dash)
+  if (player.iFrames > 0 && !player.dashing && Math.floor(player.iFrames * 10) % 2 === 0) return;
 
   let dx, dy;
-  if (player.moving) {
+  if (player.dashing) {
+    const t = Math.min(player.dashTimer / player.dashDuration, 1);
+    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
+    dx = lerp(player.dashFromX, player.dashToX, eased);
+    dy = lerp(player.dashFromY, player.dashToY, eased);
+  } else if (player.moving) {
     dx = lerp(player.fromX, player.x, player.moveT);
     dy = lerp(player.fromY, player.y, player.moveT);
   } else { dx = player.x; dy = player.y; }
+
+  // Afterimages
+  for (const ai of afterimages) {
+    ctx.globalAlpha = ai.timer / 0.3 * 0.4;
+    drawCharacter(ai.x, ai.y, '#88bbff', ai.dir, 0);
+    ctx.globalAlpha = 1;
+  }
+
+  // Dash trail effect
+  if (player.dashing) {
+    const { dx: ddx, dy: ddy } = getDirDelta(player.dir);
+    const wColor = player.equippedWeapon ? ITEMS[player.equippedWeapon].color : '#aaddff';
+    // Motion lines along dash path
+    const t = Math.min(player.dashTimer / player.dashDuration, 1);
+    ctx.globalAlpha = 0.6 * (1 - t);
+    ctx.strokeStyle = wColor;
+    ctx.lineWidth = 2;
+    const startPx = player.dashFromX * TILE + 16, startPy = player.dashFromY * TILE + 16;
+    const endPx = dx * TILE + 16, endPy = dy * TILE + 16;
+    for (let line = -1; line <= 1; line++) {
+      const off = line * 8;
+      ctx.beginPath();
+      ctx.moveTo(startPx + (ddy * off), startPy + (ddx * off));
+      ctx.lineTo(endPx + (ddy * off), endPy + (ddx * off));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
 
   if (player.hurtTimer > 0) ctx.globalAlpha = 0.5 + Math.sin(Date.now() / 30) * 0.3;
   drawCharacter(dx, dy, player.hurtTimer > 0 ? '#ff6666' : C.player, player.dir, player.moving ? player.animFrame : 0);
   ctx.globalAlpha = 1;
 
-  // Draw attack slash
+  // Draw slash arc during attack
   if (player.attacking) {
-    let sx = dx, sy = dy;
-    if (player.dir === 0) sy += 1;
-    else if (player.dir === 3) sy -= 1;
-    else if (player.dir === 1) sx -= 1;
-    else sx += 1;
-    const progress = 1 - (player.attackTimer / 0.2);
-    const spx = sx * TILE + 16, spy = sy * TILE + 16;
-    ctx.globalAlpha = 1 - progress;
-    ctx.strokeStyle = player.equippedWeapon ? ITEMS[player.equippedWeapon].color : '#fff';
-    ctx.lineWidth = 3;
+    const { dx: adx, dy: ady } = getDirDelta(player.dir);
+    // Slash appears along dash path or at adjacent tile
+    const slashX = dx * TILE + 16 + adx * TILE;
+    const slashY = dy * TILE + 16 + ady * TILE;
+    const progress = 1 - (player.attackTimer / (player.dashing ? player.dashDuration + 0.1 : 0.15));
+    const wColor = player.equippedWeapon ? ITEMS[player.equippedWeapon].color : '#cceeff';
+
+    ctx.save();
+    ctx.translate(slashX, slashY);
+    // Rotate based on facing
+    let baseAngle = 0;
+    if (player.dir === 0) baseAngle = Math.PI * 0.5;
+    else if (player.dir === 3) baseAngle = -Math.PI * 0.5;
+    else if (player.dir === 1) baseAngle = Math.PI;
+    else baseAngle = 0;
+
+    // Wide sweeping arc
+    ctx.globalAlpha = (1 - progress) * 0.9;
+    ctx.strokeStyle = wColor;
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    const angle = progress * Math.PI;
-    ctx.arc(spx, spy, 14 + progress * 4, angle - 1, angle + 1);
+    ctx.arc(0, 0, 16 + progress * 8, baseAngle - 1.2 + progress * 0.5, baseAngle + 1.2 - progress * 0.5);
     ctx.stroke();
-    // weapon color glow
-    ctx.globalAlpha = (1 - progress) * 0.3;
-    ctx.fillStyle = player.equippedWeapon ? ITEMS[player.equippedWeapon].color : '#fff';
+    // Inner bright arc
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(spx, spy, 10, 0, Math.PI * 2);
+    ctx.arc(0, 0, 12 + progress * 6, baseAngle - 0.8 + progress * 1.5, baseAngle + 0.8 - progress * 1.5);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+}
+
+function drawProjectiles() {
+  for (const pr of projectiles) {
+    // Trail
+    for (const t of pr.trail) {
+      ctx.globalAlpha = t.life / 0.15 * 0.4;
+      ctx.fillStyle = '#55ddff';
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // Core
+    ctx.fillStyle = '#aaeeff';
+    ctx.beginPath();
+    ctx.arc(pr.x, pr.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    // Glow
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#55ddff';
+    ctx.beginPath();
+    ctx.arc(pr.x, pr.y, 10, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
   }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = Math.min(1, p.life * 4);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawEnemies() {
@@ -1306,6 +1585,18 @@ function drawUI() {
   const weaponName = player.equippedWeapon ? ITEMS[player.equippedWeapon].name : 'Fists';
   ctx.fillText(`ATK: ${getPlayerAtk()}  [${weaponName}]`, pad + 8, pad + 74);
 
+  // Gun indicator
+  if (player.hasGun) {
+    ctx.fillStyle = 'rgba(20,20,40,0.7)';
+    ctx.fillRect(pad, pad + 86, 70, 18);
+    ctx.strokeStyle = '#55ddff';
+    ctx.strokeRect(pad, pad + 86, 70, 18);
+    ctx.fillStyle = player.gunCooldown > 0 ? '#555' : '#55ddff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('F: Pulse Gun', pad + 4, pad + 98);
+  }
+
   // Area name
   ctx.font = 'bold 12px monospace';
   const areaName = currentMap().name;
@@ -1321,7 +1612,8 @@ function drawUI() {
   ctx.fillStyle = 'rgba(255,255,255,0.4)';
   ctx.font = '10px monospace';
   ctx.textAlign = 'right';
-  ctx.fillText('WASD: Move  Shift: Run  E: Attack  Space: Talk  I: Inventory', canvas.width - pad, canvas.height - pad);
+  const gunHint = player.hasGun ? '  F: Shoot' : '';
+  ctx.fillText(`WASD: Move  Shift: Run  E: Dash Slash${gunHint}  Space: Talk  I: Inventory`, canvas.width - pad, canvas.height - pad);
 }
 
 function drawDialogue() {
@@ -1428,6 +1720,16 @@ function drawItemIcon(px, py, itemId, size) {
     ctx.beginPath(); ctx.arc(cx, py + s*0.18, s*0.18, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
     ctx.beginPath(); ctx.arc(cx - 1, py + s*0.15, s*0.08, 0, Math.PI*2); ctx.fill();
+  } else if (item.icon === 'gun') {
+    ctx.fillStyle = '#888';
+    ctx.fillRect(px + s*0.15, cy - 2, s*0.7, 5);
+    ctx.fillStyle = item.color;
+    ctx.fillRect(px + s*0.1, cy - 3, s*0.35, 7);
+    ctx.fillStyle = '#666';
+    ctx.fillRect(px + s*0.3, cy + 3, s*0.12, s*0.25);
+    // Muzzle glow
+    ctx.fillStyle = 'rgba(85,221,255,0.5)';
+    ctx.beginPath(); ctx.arc(px + s*0.85, cy, 3, 0, Math.PI*2); ctx.fill();
   } else {
     ctx.fillRect(px + 2, py + 2, s - 4, s - 4);
   }
@@ -1652,6 +1954,8 @@ function gameLoop(time) {
     }
   }
 
+  drawProjectiles();
+  drawParticles();
   drawDamageFloats();
   drawUI();
   drawDialogue();
