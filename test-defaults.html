@@ -1,0 +1,104 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Built-in Assets Test</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#111;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden}canvas{image-rendering:pixelated;border:2px solid #333}</style>
+</head><body><canvas id="game"></canvas>
+<script src="rpg-engine.js"></script>
+<script>
+RPG.create({
+  title: 'Tile & Enemy Showcase',
+  colors: {},
+  solidTiles: [1,2,4,6,9,11,12,13,17,23,24],
+  treeTiles: [4,17],
+  player: { name:'Tester', x:9, y:12, hp:30, mp:10, atk:5 },
+  combat: { dash:true, gun:false },
+  startMap: 'showcase',
+  winCondition: { item:'sword', title:'SHOWCASE COMPLETE!', message:'You found the Iron Sword and proved your worth!' },
+  items: {
+    herb: {name:'Herb', color:'#5cb85c', icon:'herb', desc:'Heals 5 HP.', heal:5},
+    sword: {name:'Iron Sword', color:'#a08050', icon:'sword', desc:'+3 ATK', weapon:true, atk:3},
+  },
+  enemyTypes: {
+    slime:    {name:'Slime',    color:'#5cb85c', hp:8,  atk:2, xp:10, speed:0.8, drops:['herb']},
+    frog:     {name:'Frog',     color:'#4a8a3a', hp:10, atk:2, xp:12, speed:1.0, drops:['herb']},
+    snake:    {name:'Snake',    color:'#7a6a4a', hp:12, atk:3, xp:15, speed:0.7, drops:['herb']},
+    skeleton: {name:'Skeleton', color:'#e8e0d0', hp:18, atk:4, xp:25, speed:0.5, drops:['herb']},
+    ghost:    {name:'Ghost',    color:'#8a7acc', hp:15, atk:3, xp:20, speed:0.4, drops:['herb']},
+    bat:      {name:'Bat',      color:'#4a3a5a', hp:6,  atk:2, xp:8,  speed:1.2, drops:['herb']},
+    spider:   {name:'Spider',   color:'#3a2a2a', hp:10, atk:3, xp:14, speed:0.9, drops:['herb']},
+    wolf:     {name:'Wolf',     color:'#6a6a72', hp:14, atk:4, xp:22, speed:0.6, drops:['herb']},
+    goblin:   {name:'Goblin',   color:'#5a8a3a', hp:12, atk:3, xp:18, speed:0.7, drops:['herb']},
+    rat:      {name:'Rat',      color:'#7a6a5a', hp:5,  atk:1, xp:5,  speed:1.3, drops:['herb']},
+  },
+  maps: {
+    showcase: {
+      name: 'Tile Showcase',
+      tiles: [
+        [ 0, 0, 0, 0, 7, 7, 7, 7,15,15,15,15,20,20,20,20, 0, 0, 0, 0],
+        [ 0,18, 0, 4, 7, 7, 7, 7,15,15,17,15,20,20,20,20, 0, 0, 0, 0],
+        [ 0, 0, 0, 4, 7, 7, 7, 7,15,15,15,16,20,20,20,20, 4, 0,18, 0],
+        [ 0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0],
+        [ 1, 1, 6, 6, 3, 0, 0, 0, 2, 2,19, 0, 0, 0, 0, 3, 6, 6, 1, 1],
+        [ 1, 5, 1, 1, 3, 0, 0, 2, 2, 2,19, 0, 0, 0, 0, 3, 1, 1, 5, 1],
+        [ 0, 3, 0, 0, 3, 0, 0, 2, 2, 2,19, 0, 0, 4, 0, 3, 0, 0, 3, 0],
+        [ 0, 3, 3, 3, 3, 0,24,24,24,21,21,21,24,24, 0, 3, 3, 3, 3, 0],
+        [ 0, 0, 0, 0, 3, 0, 0, 0,21,13,13,21, 0, 0, 0, 3, 0, 0, 0, 0],
+        [ 0, 0, 0, 4, 3, 0, 0, 0,21,13, 5,13, 0, 0, 0, 3, 4, 0, 0, 0],
+        [ 0, 0, 0, 0, 3, 0, 0, 0, 0, 8, 8, 0, 0, 0, 0, 3, 0, 0, 0, 0],
+        [ 0,18, 0, 0, 3, 0, 0, 0, 0, 9, 9, 0, 0, 0, 0, 3, 0, 0,18, 0],
+        [ 0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0],
+        [ 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      ],
+      npcs: [
+        {x:3, y:6, name:'Guide', color:'#7eb8da', dir:2, dialogue:["All tiles and enemies are built-in!", "No drawTile or drawEnemy needed."]},
+      ],
+      exits: {
+        south: {map:'enemies', spawnX:9, spawnY:1},
+      },
+      exitTiles: {south: [9,10]},
+      items: [{x:2, y:12, item:'sword'}],
+      enemies: [],
+    },
+    enemies: {
+      name: 'Enemy Parade',
+      tiles: [
+        [ 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [ 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4],
+      ],
+      npcs: [],
+      exits: {
+        north: {map:'showcase', spawnX:9, spawnY:13},
+      },
+      exitTiles: {north: [9,10]},
+      items: [{x:1, y:7, item:'herb'}, {x:18, y:7, item:'herb'}],
+      enemies: [
+        {x:3,  y:3,  type:'slime'},
+        {x:7,  y:3,  type:'frog'},
+        {x:13, y:3,  type:'snake'},
+        {x:17, y:3,  type:'skeleton'},
+        {x:3,  y:7,  type:'ghost'},
+        {x:7,  y:7,  type:'bat'},
+        {x:13, y:7,  type:'spider'},
+        {x:17, y:7,  type:'wolf'},
+        {x:5,  y:11, type:'goblin'},
+        {x:15, y:11, type:'rat'},
+      ],
+    },
+  },
+  doorPortals: {},
+});
+</script></body></html>
