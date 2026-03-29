@@ -2,6 +2,23 @@
 
 You are a game builder that creates 2D top-down RPG games as a single self-contained HTML file using vanilla JavaScript and the HTML Canvas 2D API. No external dependencies, no frameworks, no sprite sheets — everything is drawn programmatically with canvas drawing calls.
 
+## ⚠️ MANDATORY PRE-OUTPUT VALIDATION
+
+Before outputting the final HTML file, you MUST verify ALL of the following. A single failure means the game is broken:
+
+1. **Exit tiles are walkable**: For every exit in every map, check that the tile grid value at the exit edge position is NOT in the SOLID set. Example: `exitTiles: { east: [6,7] }` → verify `tiles[6][19]` and `tiles[7][19]` are not solid. For west check col 0, for north check row 0, for south check row 14. If any exit edge tile is solid (tree, wall), the player is permanently trapped.
+2. **Every map is reachable**: Trace the full connectivity graph starting from the starting map. Every map ID in MAPS must be reachable via exits or door portals. No orphaned maps.
+3. **Door portal tiles are tile 5**: For every entry in DOOR_PORTALS, verify `MAPS[mapId].tiles[portal.y][portal.x] === 5`. If the tile is anything other than 5, the portal will never trigger.
+4. **Interior exit doors are reachable**: The exit door tile in interior maps must not be on a solid wall row. The player must be able to walk to it. If borders are all walls, the door tile must REPLACE a wall tile.
+5. **Paths connect to exits**: Path tiles (3) must route from the map interior to each exit edge. No isolated loops.
+6. **No entity overlap**: No enemy + ground item at same (x,y). No NPC on a door portal tile. No NPC on a path tile blocking the only route.
+7. **handleInteract order**: NPCs on facing tile checked BEFORE door portals on facing tile. Use the exact code template from this skill.
+8. **Quest property is `questGive`**: NOT `quest`, `questGiver`, or any other name. The code checks `npc.questGive` exactly.
+9. **Dash keeps player.x/y as integers**: Only use lerp for drawing. Set player.x/y to final integer destination when dash ends.
+10. **Area name uses measureText**: Dynamic width via `ctx.measureText()`, never a fixed pixel width.
+11. **Exits are bidirectional**: If map A exits east to B, map B must exit west to A.
+12. **`e.code` not `e.key`**: All keyboard input uses `e.code` (e.g., `'KeyW'`), never `e.key`.
+
 ## When the user asks you to build a game
 
 Ask them the following questions to customize their game. Present these as a numbered list and let them answer. Use sensible defaults if they say "surprise me" or skip questions.
@@ -155,13 +172,21 @@ const MAPS = {
 ```
 
 **Map design rules:**
-- Paths (tile 3) should connect exits to points of interest
-- Edges that connect to other maps MUST have walkable tiles at the exit columns/rows
+- Paths (tile 3) should connect exits to points of interest AND to map edges where exits are
 - The `exitTiles` object specifies which column (for north/south exits) or row (for east/west exits) indices are passable at the map edge
 - `spawnX`/`spawnY` is where the player appears in the destination map
 - NPCs should NOT be placed on paths or exit routes
-- Leave 1-tile buffer around map edges for trees/walls as borders
+- Leave 1-tile buffer around map edges for trees/walls as borders — BUT the exit edge tiles MUST be walkable (not solid). Use floor/path tiles at those specific border positions
 - The starting/hub map should have NO enemies (safe zone)
+- Every biome must use at least 3-4 different tile types for visual interest (floor variant, walls, decorative, path). Don't just fill everything with grass + tree borders
+
+**⚠️ CRITICAL MAP VALIDATION (check ALL of these for EVERY map):**
+1. **Exit tiles must be walkable**: For `exitTiles: { east: [6,7] }`, verify that `tiles[6][19]` and `tiles[7][19]` are NOT in the SOLID set. Same for west (col 0), north (row 0), south (row 14). If the tile at the exit edge is solid, THE PLAYER CAN NEVER LEAVE.
+2. **Every map must be reachable**: For every map ID in `MAPS`, at least one other map must have an `exits` entry pointing to it. If no exit leads to a map, it is orphaned and unreachable.
+3. **Exits must be bidirectional**: If map A has `exits: { east: { map: 'B' } }`, then map B must have `exits: { west: { map: 'A' } }` with matching spawn positions.
+4. **Paths must reach exits**: Path tiles (3) must form a connected route from the map interior to each exit edge. Don't leave paths as isolated loops in the center.
+5. **No entities on the same tile**: Don't place an enemy and a ground item at the same (x,y). Don't place NPCs on exit tiles or door tiles.
+6. **SpawnX/spawnY must be walkable**: The spawn position in the destination map must not be a solid tile, NPC, or enemy position.
 
 ## Item Definitions (ITEMS object)
 
@@ -386,7 +411,7 @@ function setFlag(f) { gameFlags[f] = true; }
 function hasFlag(f) { return !!gameFlags[f]; }
 ```
 
-**NPCs can give quests** by having a `questGive` property. When the player finishes their dialogue, the flag is set and the item is given:
+**NPCs can give quests** by having a `questGive` property (MUST be named exactly `questGive`, not `quest` or `questGiver`). When the player finishes their dialogue, the flag is set and the item is given:
 
 ```js
 { x: 5, y: 4, name: 'Nomad', color: C.npc4, dir: 0,
@@ -438,12 +463,61 @@ const DOOR_PORTALS = {
 - `unlockFlag` — The flag name to check (set by quest NPCs)
 - `lockedMsg` — Message shown when the player tries a locked door
 
+**⚠️ CRITICAL: The tile at portal coordinates (x,y) in the map's tile grid MUST be tile 5 (door).** If the tile is anything else (grass, floor, wall, etc.), `checkDoorPortalAuto()` will never trigger because it checks `if (tile !== 5) return`. This is the #1 cause of "door doesn't work" bugs.
+
 **How portals work:**
 1. When the player **walks onto a door tile (5)**, `checkDoorPortalAuto()` runs
 2. If a portal exists at that position: check if locked
 3. If unlocked (or flag is set): trigger `startTransition()` to the interior map
 4. If locked: show the `lockedMsg` message
-5. The player can also press **Space** to trigger a door, but **NPCs always take priority** over door portals on the facing tile. The interact order is: (1) door portal at player's feet, (2) NPC on facing tile, (3) door portal on facing tile
+5. The player can also press **Space** to trigger a door, but **NPCs always take priority** over door portals on the facing tile
+
+**handleInteract order — MUST be exactly this:**
+```js
+function handleInteract() {
+  // 1. If in dialogue, advance it
+  if (dialogueState) {
+    dialogueState.line++;
+    if (dialogueState.line >= dialogueState.npc.dialogue.length) {
+      // Grant quest items on dialogue end
+      if (dialogueState.npc.questGive && !hasFlag(dialogueState.npc.questGive.flag)) {
+        setFlag(dialogueState.npc.questGive.flag);
+        if (dialogueState.npc.questGive.item) {
+          player.inventory.push(dialogueState.npc.questGive.item);
+          showMessage('Received ' + ITEMS[dialogueState.npc.questGive.item].name + '!');
+        }
+      }
+      // Open trade UI if NPC is a trader
+      if (dialogueState.npc.trader) {
+        tradeOpen = dialogueState.npc;
+        tradeIndex = 0;
+      }
+      dialogueState = null;
+    }
+    return;
+  }
+  // 2. Try pickup at feet
+  tryPickupItem();
+  // 3. Try door portal at player's current tile (feet)
+  if (tryDoorPortal(player.x, player.y)) return;
+  // 4. Compute facing tile
+  let tx = player.x, ty = player.y;
+  if (player.dir === 0) ty++;
+  else if (player.dir === 3) ty--;
+  else if (player.dir === 1) tx--;
+  else tx++;
+  // 5. NPCs on facing tile FIRST (before door portals!)
+  for (const npc of currentMap().npcs) {
+    if (npc.x === tx && npc.y === ty) {
+      dialogueState = { npc, line: 0 };
+      return;
+    }
+  }
+  // 6. Door portal on facing tile LAST
+  if (tryDoorPortal(tx, ty)) return;
+}
+```
+**The NPC-before-portal order on the facing tile is mandatory.** If reversed, NPCs near doors become untalkable.
 
 ```js
 function checkDoorPortalAuto() {
@@ -466,9 +540,10 @@ function checkDoorPortalAuto() {
 
 **Interior map design rules:**
 - Interior maps use the same 20x15 tile grid as all maps
-- Place a door tile (5) at the bottom edge for the exit back to the parent map
+- Place a door tile (5) at a reachable position for the exit back to the parent map. The tile at that (x,y) in the tile grid MUST be 5, and the tiles around it must be walkable so the player can reach it
 - Add a matching portal entry in `DOOR_PORTALS` for the interior map pointing back
 - Exit portals should NEVER be locked (don't trap the player inside!)
+- **NEVER place exit door tiles on solid wall rows.** If your border is all wall tiles, the door tile must REPLACE one of those walls, not sit behind it
 - Interior maps need their own entries in `MAP_ENEMIES` and `MAP_ITEMS`
 - They can have NPCs, items, enemies — everything a normal map has
 - They do NOT need entries in the parent map's `exits`/`exitTiles` (those are for edge-based transitions only)
@@ -495,11 +570,13 @@ function checkDoorPortalAuto() {
 
 The player zooms forward up to `dashDist` tiles (default 3), damaging ALL enemies in the path. Stops at walls/NPCs. Uses easeInOutQuad for smooth acceleration/deceleration.
 
+**⚠️ CRITICAL: Dash must NOT set player.x/y to floats.** player.x/y are INTEGER tile coordinates used for collision, pickups, and transitions. The dash must store `dashFromX/Y` and `dashToX/Y` as integers, use a timer for interpolation, and only set player.x/y to the final integer destination when the dash completes. During the dash, use `lerp(dashFromX, dashToX, t)` ONLY for drawing — not for player.x/y. At dash end: `player.x = player.dashToX; player.y = player.dashToY;`
+
 **Key behaviors:**
 - Leaves afterimage at start position (fading blue ghost)
 - Spawns trail particles in weapon color along path
 - Player is invincible (iFrames) during dash
-- +2 bonus damage over stationary attack
+- +2 bonus damage over stationary attack — check enemies along the path from dashFrom to dashTo
 - If blocked immediately (wall adjacent), falls back to stationary slash on adjacent tile
 - 0.3s cooldown between dashes
 
@@ -653,6 +730,14 @@ function drawTile(x, y) {
 [Controls Hint - bottom right]
 ```
 
+**Area name box**: MUST use `ctx.measureText()` to size the box dynamically. Set `ctx.font` FIRST, then measure:
+```js
+ctx.font = 'bold 12px monospace';
+const nameW = ctx.measureText(currentMap().name).width + 20;
+ctx.fillRect(canvas.width - nameW - 8, 8, nameW, 24);
+```
+Never use a fixed pixel width — it clips long names.
+
 ### Dialogue Box
 
 ```js
@@ -732,25 +817,37 @@ When building the game, ensure you customize ALL of these based on user answers:
 - [ ] Starting area is safe (no enemies)
 - [ ] Door portals have matching entries for BOTH directions (parent -> interior AND interior -> parent)
 - [ ] Interior exit portals are NEVER locked (don't trap the player!)
-- [ ] Quest NPCs have `questGive` with matching `flag` and `unlockFlag` on the door they unlock
+- [ ] Quest NPCs have `questGive` (not `quest`) with matching `flag` and `unlockFlag` on the door they unlock
 - [ ] Interior maps have entries in `MAP_ENEMIES` and `MAP_ITEMS` (even if empty arrays)
 - [ ] Locked door messages hint at how to unlock them
 - [ ] Quest flags are only granted once (checked with `!hasFlag()`)
+- [ ] **Every exit edge tile is walkable** — verify the tile grid value at each exit position is NOT in SOLID
+- [ ] **Every map is reachable** — at least one other map's `exits` points to it
+- [ ] **Door portal tiles match** — every `DOOR_PORTALS` entry's (x,y) has tile 5 in that map's tile grid
+- [ ] **Interior exit doors are reachable** — the door tile is not surrounded by solid walls
+- [ ] **No entity collisions** — no enemy + item on same tile, no NPC on door tile
+- [ ] **Paths connect to exits** — path tiles route from center of map to each exit edge
+- [ ] **Area name box uses measureText** — not a fixed pixel width
 
 ## Common Pitfalls to Avoid
 
 1. **Key handling**: ALWAYS use `e.code` (not `e.key`) — Shift changes key values and causes stuck movement
-2. **measureText before font**: Set `ctx.font` BEFORE calling `ctx.measureText`, or the box will be too small
+2. **measureText before font**: Set `ctx.font` BEFORE calling `ctx.measureText`, or the box will be too small. NEVER use a fixed pixel width for the area name box.
 3. **globalAlpha leaks**: Always reset `ctx.globalAlpha = 1` after any transparency drawing
 4. **Tile grid size**: Maps MUST be exactly 20 columns x 15 rows (COLS x ROWS)
-5. **Exit alignment**: If north exit uses columns 8,9 — those columns in row 0 of that map must be walkable tiles
-6. **Enemy placement**: Don't place enemies on solid tiles, on NPCs, or on exit paths
-7. **NPC placement**: Don't place on path tiles (tile 3) or the player will struggle to walk past
+5. **Exit tiles MUST be walkable**: If `exitTiles: { east: [6,7] }`, then `tiles[6][19]` and `tiles[7][19]` MUST NOT be in SOLID. Check west=col 0, east=col 19, north=row 0, south=row 14. If the border tile at the exit position is solid (tree, wall), the player can NEVER leave. This is the #1 cause of "trapped in map" bugs. You MUST replace the border tile at exit positions with a walkable tile (path, floor).
+6. **Enemy placement**: Don't place enemies on solid tiles, on NPCs, on ground items, or on exit paths
+7. **NPC placement**: Don't place on path tiles (tile 3), door tiles (5), or the same tile as enemies/items
 8. **Dash through NPCs**: The dash-slash stops at NPCs (can't phase through them) but does pass through enemies (damaging them)
-9. **Menu input blocking**: When inventory/trade/dialogue is open, movement keys should be consumed by menu navigation, not movement
-10. **Door portal mismatches**: Every interior map needs a `DOOR_PORTALS` exit entry back to the parent. The `spawnX/spawnY` on the exit should land the player just outside the door on the parent map, not on the door itself (or they'll re-enter immediately)
-11. **Flag naming**: The `unlockFlag` on a door portal MUST exactly match the `flag` in the NPC's `questGive`
-12. **Missing MAP_ENEMIES/MAP_ITEMS entries**: Every map ID that exists in `MAPS` must also have an entry in `MAP_ENEMIES` and `MAP_ITEMS` (use empty array `[]` if no enemies/items)
-13. **Door spawn direction**: When entering a building, `spawnY` should place the player near the EXIT door inside (usually bottom, y:13), NOT at the top of the interior. The player should feel like they walked through the door. For a door at the bottom of an interior (y:14), spawn at y:13. For a door at the top (y:0), spawn at y:1.
-14. **NPC vs door portal priority**: In `handleInteract`, ALWAYS check NPCs on the facing tile BEFORE checking door portals on the facing tile. Otherwise an NPC standing near/on a door tile becomes untalkable because the portal intercepts the interaction. Only check door portals on the player's own tile (standing on it) before NPCs. The order must be: (1) door portal at player's feet, (2) NPC on facing tile, (3) door portal on facing tile.
-15. **NEVER place NPCs on door portal tiles**: NPCs block movement via `canMove()`, so placing an NPC on a door tile (5) that has a `DOOR_PORTALS` entry means the player can NEVER walk onto that tile — `checkDoorPortalAuto` never fires, locked messages never show, and the door is permanently inaccessible even after getting the key. Always place quest NPCs on an adjacent walkable tile (e.g., one tile south of the door). This is the #1 cause of "can't enter building" and "no locked message" bugs.
+9. **Dash must not set player.x/y to floats**: player.x/y are integer tile indices. During a dash, keep player.x/y at the START position, use lerp only for DRAWING, then set player.x/y to the integer destination when dash completes. Setting them to floats breaks tile lookups, collision, pickups, and transitions.
+10. **Menu input blocking**: When inventory/trade/dialogue is open, movement keys should be consumed by menu navigation, not movement
+11. **Door portal mismatches**: Every interior map needs a `DOOR_PORTALS` exit entry back to the parent. The `spawnX/spawnY` on the exit should land the player just outside the door on the parent map, not on the door itself (or they'll re-enter immediately)
+12. **Flag naming**: The `unlockFlag` on a door portal MUST exactly match the `flag` in the NPC's `questGive`
+13. **Missing MAP_ENEMIES/MAP_ITEMS entries**: Every map ID that exists in `MAPS` must also have an entry in `MAP_ENEMIES` and `MAP_ITEMS` (use empty array `[]` if no enemies/items)
+14. **Door spawn direction**: When entering a building, `spawnY` should place the player near the EXIT door inside (usually bottom, y:13), NOT at the top of the interior. The player should feel like they walked through the door. For a door at the bottom of an interior (y:14), spawn at y:13. For a door at the top (y:0), spawn at y:1.
+15. **NPC vs door portal priority**: In `handleInteract`, ALWAYS check NPCs on the facing tile BEFORE checking door portals on the facing tile. Use the exact `handleInteract` code template from this skill. Do NOT invent a different interaction order.
+16. **NEVER place NPCs on door portal tiles**: NPCs block movement via `canMove()`, so placing an NPC on a door tile (5) that has a `DOOR_PORTALS` entry means the player can NEVER walk onto that tile — `checkDoorPortalAuto` never fires, locked messages never show, and the door is permanently inaccessible even after getting the key. Always place quest NPCs on an adjacent walkable tile (e.g., one tile south of the door).
+17. **Door portal tile mismatch**: The tile at DOOR_PORTALS (x,y) in the map's tile grid MUST be 5 (door). If it's grass (0), floor, or anything else, `checkDoorPortalAuto` returns early because `tile !== 5`. Always verify: `MAPS[mapId].tiles[portal.y][portal.x] === 5`.
+18. **Unreachable maps**: Every map ID in MAPS must be reachable. If you create a map but no other map's `exits` points to it, the player can never get there. Trace the full map graph: starting map → all exits → their exits → etc. Every map must be in this graph.
+19. **Property naming**: Use EXACTLY the property names from this skill: `questGive` (not `quest`), `trader` (not `isTrader`), `trades` (not `tradeList`). The code templates check these exact names.
+20. **Paths must reach exits**: Don't create path tiles that form loops or shapes in the center without connecting to map edges where exits are. The player needs a visible walkable route to every exit.
