@@ -1906,13 +1906,13 @@ function showExport() {
 <title>${project.title}</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{background:#111;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden}canvas{image-rendering:pixelated;border:2px solid #333}</style>
 </head><body><canvas id="game"></canvas>
-<script src="rpg-engine.js"><\/script>
+<script src="https://hsingh124.github.io/rpg/rpg-engine.js"><\/script>
 <script>
 RPG.create(${cfgStr});
 <\/script></body></html>`;
 
   const html = `
-    <p style="font-size:11px;color:var(--text2);margin-bottom:8px">Copy or download the generated game HTML. Place it alongside rpg-engine.js to play.</p>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:8px">Copy or download the generated game HTML. It uses the hosted engine and can be run anywhere.</p>
     <textarea id="exportArea" readonly>${gameHtml.replace(/</g,'&lt;')}</textarea>
   `;
   openModal('Export Game', html, '<button class="primary" id="mCopyExport">Copy to Clipboard</button> <button class="success" id="mDownloadExport">Download HTML</button>', true);

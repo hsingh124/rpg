@@ -21,6 +21,8 @@ const RPG = {
     const MAP_ITEMS = {};
     const MAP_ENEMIES = {};
 
+    let now = Date.now();
+
     // Split maps config into MAPS + MAP_ITEMS + MAP_ENEMIES
     for (const [id, m] of Object.entries(cfg.maps)) {
       const npcs = (m.npcs || []).map(n => ({
@@ -28,7 +30,13 @@ const RPG = {
         moveTimer: 2 + Math.random() * 4, animFrame: 0, animTimer: 0,
         patrolIndex: 0, originX: n.x, originY: n.y,
       }));
-      MAPS[id] = { name: m.name, tiles: m.tiles, npcs, exits: m.exits || {}, exitTiles: m.exitTiles || {} };
+      const treeCoords = [];
+      for (let ty = 0; ty < ROWS; ty++) {
+        for (let tx = 0; tx < COLS; tx++) {
+          if (TREE_TILES.has(m.tiles[ty][tx])) treeCoords.push({ x: tx, y: ty, t: m.tiles[ty][tx] });
+        }
+      }
+      MAPS[id] = { name: m.name, tiles: m.tiles, npcs, treeCoords, exits: m.exits || {}, exitTiles: m.exitTiles || {} };
       MAP_ITEMS[id] = (m.items || []).map(i => ({ ...i }));
       MAP_ENEMIES[id] = (m.enemies || []).map(e => {
         const t = ENEMY_TYPES[e.type];
@@ -125,7 +133,7 @@ const RPG = {
     // 13=dungeon_wall 14=bones 15=snow 16=ice 17=pine_tree 18=flowers
     // 19=bridge 20=dark_grass 21=cobblestone 22=carpet 23=bookshelf 24=fence
     function defaultDrawTile(ctx, type, x, y, px, py, TILE, C) {
-      const t = Date.now();
+      const t = now;
       switch (type) {
         case 0: // grass
           ctx.fillStyle = (x+y)%2 ? (C.grass||'#4a7a3b') : (C.grass2||'#3d6b31');
@@ -292,7 +300,7 @@ const RPG = {
     // --- Default Enemy Renderer ---
     // Built-in enemy visuals: slime, frog, snake, skeleton, ghost, bat, spider, wolf, goblin, rat
     function defaultDrawEnemy(ctx, type, enemy, px, py, TILE, C, hurt) {
-      const t = Date.now();
+      const t = now;
       switch (type) {
         case 'slime': {
           const bounce = Math.sin(t/300)*2;
@@ -593,6 +601,7 @@ const RPG = {
       if (e.hp <= 0) {
         e.alive = false;
         const et = ENEMY_TYPES[e.type];
+        if (!et) return;
         player.xp += et.xp;
         damageFloats.push({ x: e.x * TILE + 16, y: e.y * TILE - 10, text: `+${et.xp} XP`, color: '#f1c40f', timer: 1.2 });
         spawnParticles(e.x * TILE + 16, e.y * TILE + 16, et.color, 12, 300);
@@ -816,6 +825,7 @@ const RPG = {
       for (const e of enemies) {
         if (!e.alive) continue;
         const et = ENEMY_TYPES[e.type];
+        if (!et) continue;
         if (e.hurtTimer > 0) e.hurtTimer -= dt;
         if (e.dashCooldown > 0) e.dashCooldown -= dt;
         if (e.rangedCooldown > 0) e.rangedCooldown -= dt;
@@ -1023,7 +1033,7 @@ const RPG = {
         for (let line = -1; line <= 1; line++) { const off = line * 8; ctx.beginPath(); ctx.moveTo(sx + ddy * off, sy + ddx * off); ctx.lineTo(ex + ddy * off, ey + ddx * off); ctx.stroke(); }
         ctx.globalAlpha = 1;
       }
-      if (player.hurtTimer > 0) ctx.globalAlpha = 0.5 + Math.sin(Date.now() / 30) * 0.3;
+      if (player.hurtTimer > 0) ctx.globalAlpha = 0.5 + Math.sin(now / 30) * 0.3;
       drawCharacter(dx, dy, player.hurtTimer > 0 ? '#ff6666' : (C.player || '#e8c170'), player.dir, player.moving ? player.animFrame : 0);
       ctx.globalAlpha = 1;
       if (player.attacking) {
@@ -1068,7 +1078,7 @@ const RPG = {
       const items = MAP_ITEMS[currentMapId]; if (!items) return;
       for (const gi of items) {
         const px = gi.x * TILE + 8, py = gi.y * TILE + 8;
-        const bob = Math.sin(Date.now() / 400 + gi.x * 3 + gi.y * 7) * 3;
+        const bob = Math.sin(now / 400 + gi.x * 3 + gi.y * 7) * 3;
         ctx.globalAlpha = 0.3; ctx.fillStyle = ITEMS[gi.item].color;
         ctx.beginPath(); ctx.arc(px + 8, py + 8 + bob, 12, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1; drawItemIcon(px, py + bob, gi.item, 16);
@@ -1078,6 +1088,7 @@ const RPG = {
     function drawOneEnemy(e) {
       if (!e.alive) return;
       const et = ENEMY_TYPES[e.type];
+      if (!et) return;
       // Lerp position for dashing enemies
       let ex, ey;
       if (e.dashing) {
@@ -1246,7 +1257,7 @@ const RPG = {
       for (let i = 0; i < starCount; i++) {
         const sx = 80 + ((i * 137 + 50) % (canvas.width - 160));
         const sy = 60 + ((i * 89 + 30) % (canvas.height - 120));
-        const twinkle = Math.sin(Date.now() / 400 + i * 2) * 0.4 + 0.6;
+        const twinkle = Math.sin(now / 400 + i * 2) * 0.4 + 0.6;
         ctx.globalAlpha = textFade * twinkle;
         ctx.fillStyle = '#f1c40f';
         ctx.beginPath(); ctx.arc(sx, sy, 2, 0, Math.PI * 2); ctx.fill();
@@ -1256,7 +1267,7 @@ const RPG = {
       const wt = winCfg.title || 'VICTORY!';
       ctx.font = 'bold 32px monospace'; ctx.textAlign = 'center';
       ctx.fillStyle = C.uiBorder || '#e8c170';
-      const titleY = canvas.height / 2 - 40 + Math.sin(Date.now() / 1000) * 3;
+      const titleY = canvas.height / 2 - 40 + Math.sin(now / 1000) * 3;
       ctx.fillText(wt, canvas.width / 2, titleY);
       // Message
       const wm = winCfg.message || 'You completed the quest!';
@@ -1282,6 +1293,7 @@ const RPG = {
     // --- Game Loop ---
     let lastTime = 0;
     function gameLoop(time) {
+      now = Date.now();
       const dt = Math.min((time - lastTime) / 1000, 0.05); lastTime = time;
       if (!gameWon) update(dt);
       const map = currentMap();
@@ -1318,8 +1330,8 @@ const RPG = {
         else if (e.type === 'enemy') drawOneEnemy(e.obj);
       }
       // Redraw tree tiles on top
-      for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
-        if (TREE_TILES.has(map.tiles[y][x])) drawTileFn(ctx, map.tiles[y][x], x, y, x * TILE, y * TILE, TILE, C);
+      for (const tc of map.treeCoords) {
+        drawTileFn(ctx, tc.t, tc.x, tc.y, tc.x * TILE, tc.y * TILE, TILE, C);
       }
       drawProjectiles(); drawParticles(); drawDamageFloats();
       drawUI(); drawDialogue(); drawInventory(); drawTradeMenu(); drawTransition();
