@@ -321,8 +321,6 @@ NPCs are rendered by the engine as colored sprites. Customize via the config pro
   x:5, y:7, name:'King Aldric', color:'#daa520',  // gold-colored character
   dir:0,  // 0=down, 1=left, 2=right, 3=up
   dialogue:["I am the king!", "Bring me the dragon's fang."],
-  // Optional patrol path (makes NPC walk between waypoints)
-  patrol: [[5,7],[5,10],[8,10],[8,7]],
   // Optional: make them a trader
   trader: true,
   trades: [{ give:'dragon_fang', giveQty:1, receive:'ruby', receiveQty:3 }],
@@ -331,7 +329,7 @@ NPCs are rendered by the engine as colored sprites. Customize via the config pro
 }
 ```
 
-**Movement / "Alive" NPCs**: Use `patrol` arrays to give NPCs movement paths. They will walk between waypoints in a loop, making them feel alive. Place 3-5 waypoints around a small area for guards, shopkeepers, or wandering villagers.
+NPCs are stationary — they stay at their placed position and face the direction set by `dir`. Make them feel alive by placing them in interesting locations with context-rich dialogue.
 
 ---
 
