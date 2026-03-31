@@ -1877,7 +1877,7 @@ function configToJs(cfg, indent) {
 function playProject() {
   const cfg = generateExport();
   const cfgStr = configToJs(cfg, 2);
-  const engineUrl = new URL('rpg-engine.js', window.location.href).href;
+  const engineUrl = 'https://hsingh124.github.io/rpg/rpg-engine.js';
   const gameHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${project.title}</title>
@@ -1906,13 +1906,13 @@ function showExport() {
 <title>${project.title}</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}body{background:#111;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden}canvas{image-rendering:pixelated;border:2px solid #333}</style>
 </head><body><canvas id="game"></canvas>
-<script src="rpg-engine.js"><\/script>
+<script src="https://hsingh124.github.io/rpg/rpg-engine.js"><\/script>
 <script>
 RPG.create(${cfgStr});
 <\/script></body></html>`;
 
   const html = `
-    <p style="font-size:11px;color:var(--text2);margin-bottom:8px">Copy or download the generated game HTML. Place it alongside rpg-engine.js to play.</p>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:8px">Copy or download the generated game HTML to play.</p>
     <textarea id="exportArea" readonly>${gameHtml.replace(/</g,'&lt;')}</textarea>
   `;
   openModal('Export Game', html, '<button class="primary" id="mCopyExport">Copy to Clipboard</button> <button class="success" id="mDownloadExport">Download HTML</button>', true);
