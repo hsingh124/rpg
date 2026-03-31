@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RPG Game Editor</title>
+<style>
+:root {
+  --bg: #12121a; --panel: #1a1a2e; --panel2: #16213e;
+  --border: #2a3a5e; --accent: #e8c170; --accent2: #f0d890;
+  --text: #d0d0d8; --text2: #8a8a9a; --input: #0d1b2a;
+  --red: #e74c3c; --green: #27ae60; --blue: #3498db;
+  --topbar-h: 44px; --status-h: 26px; --left-w: 200px; --right-w: 310px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font: 13px/1.4 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; }
+input, select, textarea, button { font: inherit; color: var(--text); }
+input, select, textarea { background: var(--input); border: 1px solid var(--border); border-radius: 3px; padding: 4px 6px; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+textarea { resize: vertical; }
+button { background: var(--panel2); border: 1px solid var(--border); border-radius: 3px; padding: 4px 10px; cursor: pointer; }
+button:hover { background: var(--border); }
+button.primary { background: #0f3460; border-color: var(--accent); color: var(--accent); }
+button.primary:hover { background: #1a4a80; }
+button.danger { color: var(--red); border-color: var(--red); }
+button.danger:hover { background: rgba(231,76,60,.15); }
+button.success { color: var(--green); border-color: var(--green); }
+button.success:hover { background: rgba(39,174,96,.15); }
+label { display: block; color: var(--text2); font-size: 11px; margin-bottom: 2px; margin-top: 8px; text-transform: uppercase; letter-spacing: .5px; }
+label:first-child { margin-top: 0; }
+.row { display: flex; gap: 6px; align-items: center; }
+.row > * { flex: 1; }
+h3 { font-size: 13px; color: var(--accent); margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+h4 { font-size: 12px; color: var(--text2); margin: 10px 0 4px; }
+
+/* Layout */
+#topbar {
+  height: var(--topbar-h); background: var(--panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 12px; gap: 8px;
+}
+#topbar .logo { color: var(--accent); font-weight: 700; font-size: 14px; margin-right: 8px; white-space: nowrap; }
+#topbar .sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+#projectTitle { width: 140px; font-weight: 600; }
+#mapSelect { width: 120px; }
+#topbar .spacer { flex: 1; }
+.toolbar-group { display: flex; gap: 4px; }
+.tool-btn { padding: 4px 8px; font-size: 12px; border-radius: 3px; }
+.tool-btn.active { background: var(--accent); color: #111; border-color: var(--accent); }
+
+#workspace { display: flex; height: calc(100vh - var(--topbar-h)); }
+
+#leftPanel {
+  width: var(--left-w); background: var(--panel); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#leftPanel .section-title {
+  font-size: 11px; color: var(--accent); padding: 8px 10px 4px; text-transform: uppercase; letter-spacing: .5px;
+}
+#tilePalette { display: grid; grid-template-columns: repeat(5,1fr); gap: 3px; padding: 6px 10px; }
+.tile-swatch {
+  width: 100%; aspect-ratio: 1; border: 2px solid transparent; border-radius: 3px; cursor: pointer;
+  position: relative; display: flex; align-items: center; justify-content: center;
+}
+.tile-swatch:hover { border-color: var(--text2); }
+.tile-swatch.active { border-color: var(--accent); box-shadow: 0 0 6px rgba(232,193,112,.4); }
+.tile-swatch canvas { width: 100%; height: 100%; border-radius: 2px; image-rendering: pixelated; }
+.tile-swatch .tile-id { position: absolute; bottom: 1px; right: 2px; font-size: 8px; color: rgba(255,255,255,.6); }
+
+#leftPanel .entity-buttons { padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; }
+#leftPanel .entity-buttons button { text-align: left; padding: 6px 10px; font-size: 12px; }
+#leftPanel .entity-buttons button.active { background: var(--accent); color: #111; border-color: var(--accent); }
+
+.entity-list { padding: 4px 10px; overflow-y: auto; flex: 1; }
+.entity-item {
+  padding: 4px 8px; margin-bottom: 2px; border-radius: 3px; cursor: pointer; font-size: 12px;
+  display: flex; align-items: center; gap: 6px; border: 1px solid transparent;
+}
+.entity-item:hover { background: rgba(255,255,255,.05); }
+.entity-item.selected { border-color: var(--accent); background: rgba(232,193,112,.1); }
+.entity-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+#canvasWrap {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--bg); overflow: auto; position: relative;
+}
+#mapCanvas { image-rendering: pixelated; cursor: crosshair; border: 2px solid var(--border); }
+#statusBar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: var(--status-h);
+  background: var(--panel); border-top: 1px solid var(--border);
+  padding: 0 12px; font-size: 11px; color: var(--text2);
+  display: flex; align-items: center; gap: 16px;
+}
+
+#rightPanel {
+  width: var(--right-w); background: var(--panel); border-left: 1px solid var(--border);
+  overflow-y: auto; padding: 12px;
+}
+.prop-group { margin-bottom: 12px; }
+.prop-group .inline-btns { display: flex; gap: 4px; margin-top: 6px; }
+
+/* Exit config */
+.exit-row { display: flex; align-items: center; gap: 4px; padding: 3px 0; font-size: 12px; }
+.exit-row select, .exit-row input { font-size: 11px; padding: 2px 4px; }
+.exit-row input[type="number"] { width: 40px; }
+.exit-row input[type="text"] { width: 60px; }
+.exit-dir { width: 40px; font-weight: 600; color: var(--accent); }
+
+/* Trade row */
+.trade-row { display: flex; align-items: center; gap: 4px; padding: 3px 0; font-size: 11px; flex-wrap: wrap; }
+.trade-row select { width: 80px; }
+.trade-row input[type="number"] { width: 36px; }
+
+/* Modal */
+#modalOverlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  z-index: 100; justify-content: center; align-items: center;
+}
+#modalOverlay.visible { display: flex; }
+#modal {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+  width: 640px; max-height: 80vh; display: flex; flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+#modal.wide { width: 840px; }
+#modalHeader {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+}
+#modalHeader h3 { border: none; margin: 0; padding: 0; }
+#modalBody { padding: 16px; overflow-y: auto; flex: 1; }
+#modalBody .form-row { display: flex; gap: 12px; margin-bottom: 6px; }
+#modalBody .form-row > div { flex: 1; }
+#modalBody table { width: 100%; border-collapse: collapse; font-size: 12px; }
+#modalBody th { text-align: left; color: var(--text2); font-size: 11px; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+#modalBody td { padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,.05); }
+#modalBody td input, #modalBody td select { width: 100%; font-size: 11px; padding: 2px 4px; }
+#modalBody td input[type="number"] { width: 60px; }
+#modalBody td input[type="color"] { width: 40px; height: 24px; padding: 0; border: none; }
+#modalFooter { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 6px; }
+
+/* Export area */
+#exportArea { width: 100%; height: 400px; font-family: 'Courier New', monospace; font-size: 11px; background: #0a0a14; color: #8f8; }
+
+/* NPC color swatch next to input */
+.color-row { display: flex; gap: 6px; align-items: center; }
+.color-row input[type="color"] { width: 32px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 3px; }
+.color-row input[type="text"] { flex: 1; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR ═══ -->
+<div id="topbar">
+  <span class="logo">⚔ RPG Editor</span>
+  <div class="sep"></div>
+  <input id="projectTitle" value="My RPG Game" placeholder="Game Title">
+  <div class="sep"></div>
+  <select id="mapSelect"></select>
+  <button id="btnAddMap" class="success" title="Add new map">+ Map</button>
+  <button id="btnDelMap" class="danger" title="Delete current map">×</button>
+  <div class="sep"></div>
+  <div class="toolbar-group">
+    <button class="tool-btn active" data-tool="paint" title="Paint tiles (P)">🖌 Paint</button>
+    <button class="tool-btn" data-tool="fill" title="Flood fill (F)">🪣 Fill</button>
+    <button class="tool-btn" data-tool="erase" title="Erase to grass (E)">⌫ Erase</button>
+    <button class="tool-btn" data-tool="select" title="Select entities (S)">⬚ Select</button>
+  </div>
+  <div class="spacer"></div>
+  <button id="btnPlayer" class="primary">Player</button>
+  <button id="btnItemDefs" class="primary">Items</button>
+  <button id="btnEnemyDefs" class="primary">Enemies</button>
+  <button id="btnWinCond" class="primary">Win</button>
+  <div class="sep"></div>
+  <button id="btnSave">Save</button>
+  <button id="btnLoad">Load</button>
+  <button id="btnExport" class="primary" style="font-weight:700">▶ Export</button>
+</div>
+
+<!-- ═══ WORKSPACE ═══ -->
+<div id="workspace">
+
+  <!-- Left Panel -->
+  <div id="leftPanel">
+    <div class="section-title">Tiles</div>
+    <div id="tilePalette"></div>
+    <div class="section-title" style="margin-top:6px">Place Entities</div>
+    <div class="entity-buttons">
+      <button data-place="npc">👤 Place NPC</button>
+      <button data-place="enemy">💀 Place Enemy</button>
+      <button data-place="item">✦ Place Item</button>
+      <button data-place="door">🚪 Place Door Portal</button>
+    </div>
+    <div class="section-title" style="margin-top:6px">On This Map</div>
+    <div class="entity-list" id="entityList"></div>
+  </div>
+
+  <!-- Canvas Area -->
+  <div id="canvasWrap">
+    <canvas id="mapCanvas" width="640" height="480"></canvas>
+    <div id="statusBar">
+      <span id="statusTool">Tool: Paint</span>
+      <span id="statusPos">Pos: -</span>
+      <span id="statusTile">Tile: -</span>
+      <span id="statusMap">Map: -</span>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="rightPanel">
+    <div id="propsContent"></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL ═══ -->
+<div id="modalOverlay">
+  <div id="modal">
+    <div id="modalHeader"><h3 id="modalTitle">Modal</h3><button id="modalClose">✕</button></div>
+    <div id="modalBody"></div>
+    <div id="modalFooter"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════════
+const TILE = 32, COLS = 20, ROWS = 15;
+
+const TILE_INFO = [
+  { id:0,  name:'Grass',        color:'#4a7a3b', color2:'#3d6b31', solid:false },
+  { id:1,  name:'Stone Wall',   color:'#7a6652', solid:true },
+  { id:2,  name:'Water',        color:'#3b6d9e', solid:true },
+  { id:3,  name:'Dirt Path',    color:'#c4a55a', solid:false },
+  { id:4,  name:'Tree',         color:'#2d5a1e', solid:true, tree:true },
+  { id:5,  name:'Door',         color:'#5a3a1a', solid:false },
+  { id:6,  name:'Roof',         color:'#8b3a3a', solid:true },
+  { id:7,  name:'Sand',         color:'#d4b96a', solid:false },
+  { id:8,  name:'Dungeon Floor',color:'#4a4540', solid:false },
+  { id:9,  name:'Lava',         color:'#cc4400', solid:true },
+  { id:10, name:'Cave Floor',   color:'#3a3530', solid:false },
+  { id:11, name:'Cave Wall',    color:'#2a2520', solid:true },
+  { id:12, name:'Stalagmite',   color:'#4a3530', solid:true },
+  { id:13, name:'Dungeon Wall', color:'#3a3545', solid:true },
+  { id:14, name:'Bones',        color:'#4a4540', solid:false },
+  { id:15, name:'Snow',         color:'#e8e8f0', solid:false },
+  { id:16, name:'Ice',          color:'#a0c8e8', solid:false },
+  { id:17, name:'Pine Tree',    color:'#1a5028', solid:true, tree:true },
+  { id:18, name:'Flowers',      color:'#5a8a4b', solid:false },
+  { id:19, name:'Bridge',       color:'#8b6914', solid:false },
+  { id:20, name:'Dark Grass',   color:'#2a5a22', solid:false },
+  { id:21, name:'Cobblestone',  color:'#8a8078', solid:false },
+  { id:22, name:'Carpet',       color:'#8b3050', solid:false },
+  { id:23, name:'Bookshelf',    color:'#6b4226', solid:true },
+  { id:24, name:'Fence',        color:'#b89a6a', solid:true },
+];
+
+const ENEMY_SPRITES = ['slime','frog','snake','skeleton','ghost','wraith','bat','spider','wolf','goblin','rat'];
+const ITEM_ICONS = ['herb','shroom','fossil','gem','crystal','potion','scroll','feather','coin','sword','staff','gun','key','seal','bone'];
+const DIR_NAMES = ['Down','Left','Right','Up'];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROJECT STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+function makeEmptyTiles() {
+  return Array.from({length: ROWS}, () => Array(COLS).fill(0));
+}
+
+function createDefaultProject() {
+  return {
+    title: 'My RPG Game',
+    startMap: 'village',
+    player: { name:'Hero', x:9, y:9, hp:20, mp:10, atk:2 },
+    combat: { dash:true, gun:false },
+    winCondition: { type:'item', item:'', flag:'', title:'Victory!', message:'You won the game!' },
+    items: {
+      herb: { name:'Herb', color:'#5cb85c', icon:'herb', desc:'Heals 5 HP.', heal:5 },
+    },
+    enemyTypes: {
+      slime: { name:'Slime', color:'#5cb85c', hp:8, atk:2, xp:10, speed:0.8, drops:['herb'] },
+    },
+    maps: {
+      village: {
+        name: 'Village',
+        tiles: makeEmptyTiles(),
+        npcs: [],
+        enemies: [],
+        items: [],
+        exits: {},
+        exitTiles: {},
+      },
+    },
+    doorPortals: {},
+  };
+}
+
+let project = createDefaultProject();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EDITOR STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+let ed = {
+  currentMap: 'village',
+  tool: 'paint',        // paint, fill, erase, select, place_npc, place_enemy, place_item, place_door
+  selectedTile: 0,
+  hoverX: -1, hoverY: -1,
+  isPainting: false,
+  selType: null,         // 'npc','enemy','item','doorPortal'
+  selIndex: -1,
+  undoStack: [],
+  undoPointer: -1,
+};
+
+function curMap() { return project.maps[ed.currentMap]; }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UNDO
+// ═══════════════════════════════════════════════════════════════════════════════
+function pushUndo() {
+  const snap = JSON.stringify(curMap().tiles);
+  ed.undoStack = ed.undoStack.slice(0, ed.undoPointer + 1);
+  ed.undoStack.push(snap);
+  if (ed.undoStack.length > 50) ed.undoStack.shift();
+  ed.undoPointer = ed.undoStack.length - 1;
+}
+function undo() {
+  if (ed.undoPointer > 0) {
+    ed.undoPointer--;
+    curMap().tiles = JSON.parse(ed.undoStack[ed.undoPointer]);
+    render();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CANVAS RENDERING
+// ═══════════════════════════════════════════════════════════════════════════════
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawTiles();
+  drawEntities();
+  drawGrid();
+  drawHover();
+  updateEntityList();
+  updateStatusBar();
+}
+
+function drawTiles() {
+  const tiles = curMap().tiles;
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const type = tiles[y][x];
+      const px = x * TILE, py = y * TILE;
+      drawSingleTile(ctx, type, x, y, px, py);
+    }
+  }
+}
+
+function drawSingleTile(ctx, type, x, y, px, py) {
+  const info = TILE_INFO[type] || TILE_INFO[0];
+  // Base color
+  if (info.color2 && (x+y)%2) {
+    ctx.fillStyle = info.color2;
+  } else {
+    ctx.fillStyle = info.color;
+  }
+  ctx.fillRect(px, py, TILE, TILE);
+
+  switch(type) {
+    case 1: // wall bricks
+      ctx.strokeStyle = 'rgba(0,0,0,.15)'; ctx.lineWidth = 1;
+      ctx.strokeRect(px+1, py+1, 14, 14); ctx.strokeRect(px+16, py+16, 14, 14);
+      ctx.fillStyle = 'rgba(0,0,0,.1)'; ctx.fillRect(px, py+28, TILE, 4);
+      break;
+    case 2: // water shimmer
+      ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(px+4, py+10, 12, 3);
+      ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(px+16, py+20, 10, 2);
+      break;
+    case 3: // path specks
+      ctx.fillStyle = 'rgba(0,0,0,.06)';
+      if ((x+y*3)%5===0) ctx.fillRect(px+6,py+10,4,3);
+      break;
+    case 4: // tree
+      ctx.fillStyle = (x+y)%2 ? '#4a7a3b' : '#3d6b31'; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#6b4226'; ctx.fillRect(px+13, py+20, 6, 12);
+      ctx.fillStyle = '#2d5a1e';
+      ctx.beginPath(); ctx.arc(px+16, py+14, 12, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,50,0,.25)';
+      ctx.beginPath(); ctx.arc(px+13, py+12, 6, 0, Math.PI*2); ctx.fill();
+      break;
+    case 5: // door
+      ctx.fillStyle = '#c4a55a'; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#5a3a1a'; ctx.fillRect(px+6, py+4, 20, 24);
+      ctx.fillStyle = '#e8c170'; ctx.fillRect(px+20, py+14, 3, 3);
+      break;
+    case 6: // roof lines
+      ctx.fillStyle = 'rgba(0,0,0,.08)';
+      for (let i = 4; i < TILE; i += 8) ctx.fillRect(px, py+i, TILE, 1);
+      break;
+    case 9: // lava glow
+      ctx.fillStyle = 'rgba(255,200,0,.3)'; ctx.fillRect(px+4, py+6, 14, 6);
+      ctx.fillStyle = 'rgba(255,100,0,.2)'; ctx.fillRect(px+14, py+18, 12, 5);
+      break;
+    case 11: // cave wall shadow
+      ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(px, py+26, TILE, 6);
+      break;
+    case 12: // stalagmite spike
+      ctx.fillStyle = '#2a2520';
+      ctx.beginPath(); ctx.moveTo(px+10, py+TILE); ctx.lineTo(px+16, py+6); ctx.lineTo(px+22, py+TILE); ctx.fill();
+      break;
+    case 13: // dungeon wall
+      ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(px, py+27, TILE, 5);
+      ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 1; ctx.strokeRect(px+2, py+2, 28, 12);
+      break;
+    case 14: // bones
+      ctx.fillStyle = '#c8c0b0';
+      ctx.beginPath(); ctx.arc(px+14, py+12, 4, 0, Math.PI*2); ctx.fill();
+      ctx.fillRect(px+8, py+16, 14, 2); ctx.fillRect(px+12, py+12, 2, 10);
+      break;
+    case 17: // pine
+      ctx.fillStyle = (x+y)%2 ? '#4a7a3b' : '#3d6b31'; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#6b4226'; ctx.fillRect(px+14, py+22, 4, 10);
+      ctx.fillStyle = '#1a5028';
+      ctx.beginPath(); ctx.moveTo(px+16, py+4); ctx.lineTo(px+26, py+16); ctx.lineTo(px+6, py+16); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(px+16, py+10); ctx.lineTo(px+28, py+24); ctx.lineTo(px+4, py+24); ctx.fill();
+      break;
+    case 18: // flowers
+      ctx.fillStyle = (x+y)%2 ? '#4a7a3b' : '#3d6b31'; ctx.fillRect(px, py, TILE, TILE);
+      const fc = ['#e55','#e8e','#ee5','#5be'];
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = fc[(x+y+i)%fc.length];
+        ctx.beginPath(); ctx.arc(px+8+i*8, py+10+(i*7)%14, 3, 0, Math.PI*2); ctx.fill();
+      }
+      break;
+    case 19: // bridge
+      ctx.fillStyle = '#3b6d9e'; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#8b6914'; ctx.fillRect(px, py+4, TILE, 24);
+      ctx.fillStyle = 'rgba(0,0,0,.1)'; ctx.fillRect(px, py+12, TILE, 2); ctx.fillRect(px, py+20, TILE, 2);
+      break;
+    case 21: // cobble
+      ctx.strokeStyle = 'rgba(0,0,0,.1)'; ctx.lineWidth = 1;
+      ctx.strokeRect(px+1, py+1, 14, 14); ctx.strokeRect(px+16, py+1, 14, 14);
+      ctx.strokeRect(px+8, py+16, 14, 14);
+      break;
+    case 22: // carpet
+      ctx.strokeStyle = '#c4a55a'; ctx.lineWidth = 1; ctx.strokeRect(px+3, py+3, 26, 26);
+      break;
+    case 23: // bookshelf
+      const bc = ['#8b3030','#3050a0','#2a7030','#8b6014'];
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+        ctx.fillStyle = bc[(x+y+r+c)%bc.length];
+        ctx.fillRect(px+2+c*7, py+2+r*10, 6, 8);
+      }
+      break;
+    case 24: // fence
+      ctx.fillStyle = (x+y)%2 ? '#4a7a3b' : '#3d6b31'; ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = '#b89a6a';
+      ctx.fillRect(px, py+10, TILE, 3); ctx.fillRect(px, py+20, TILE, 3);
+      ctx.fillRect(px+4, py+6, 3, 20); ctx.fillRect(px+25, py+6, 3, 20);
+      break;
+  }
+}
+
+function drawEntities() {
+  const map = curMap();
+
+  // Door portal indicators
+  const portals = project.doorPortals[ed.currentMap] || [];
+  portals.forEach((p, i) => {
+    const px = p.x * TILE, py = p.y * TILE;
+    ctx.strokeStyle = '#e8c170';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(px+2, py+2, TILE-4, TILE-4);
+    ctx.setLineDash([]);
+    if (ed.selType === 'doorPortal' && ed.selIndex === i) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(px, py, TILE, TILE);
+    }
+  });
+
+  // Items on map
+  map.items.forEach((it, i) => {
+    const px = it.x * TILE + 8, py = it.y * TILE + 8;
+    const def = project.items[it.item];
+    ctx.fillStyle = def ? def.color : '#aaa';
+    ctx.shadowColor = def ? def.color : '#aaa';
+    ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.arc(px+8, py+8, 6, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(it.item.slice(0,3), px+8, py+12);
+    if (ed.selType === 'item' && ed.selIndex === i) {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      ctx.strokeRect(it.x*TILE+2, it.y*TILE+2, TILE-4, TILE-4);
+    }
+  });
+
+  // Enemies
+  map.enemies.forEach((en, i) => {
+    const px = en.x * TILE + 4, py = en.y * TILE + 4;
+    const def = project.enemyTypes[en.type];
+    ctx.fillStyle = def ? def.color : '#e55';
+    // Draw diamond
+    ctx.beginPath();
+    ctx.moveTo(px+12, py); ctx.lineTo(px+24, py+12);
+    ctx.lineTo(px+12, py+24); ctx.lineTo(px, py+12);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(en.type.slice(0,3), px+12, py+15);
+    if (ed.selType === 'enemy' && ed.selIndex === i) {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      ctx.strokeRect(en.x*TILE+1, en.y*TILE+1, TILE-2, TILE-2);
+    }
+  });
+
+  // NPCs
+  map.npcs.forEach((npc, i) => {
+    const px = npc.x * TILE + 2, py = npc.y * TILE + 2;
+    const w = TILE - 4, h = TILE - 4;
+    ctx.fillStyle = npc.color || '#7eb8da';
+    ctx.beginPath();
+    ctx.roundRect(px, py, w, h, 4);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(npc.name ? npc.name[0] : '?', px + w/2, py + h/2 + 4);
+    // Direction indicator
+    const cx = px + w/2, cy = py + h/2;
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    if (npc.dir === 0) ctx.fillRect(cx-2, py+h-2, 4, 3);      // down
+    else if (npc.dir === 1) ctx.fillRect(px-1, cy-2, 3, 4);    // left
+    else if (npc.dir === 2) ctx.fillRect(px+w-2, cy-2, 3, 4);  // right
+    else if (npc.dir === 3) ctx.fillRect(cx-2, py-1, 4, 3);    // up
+
+    if (ed.selType === 'npc' && ed.selIndex === i) {
+      ctx.strokeStyle = '#e8c170'; ctx.lineWidth = 2;
+      ctx.strokeRect(npc.x*TILE, npc.y*TILE, TILE, TILE);
+    }
+  });
+
+  // Exit tile indicators
+  const m = curMap();
+  for (const dir of ['north','south','east','west']) {
+    const exitTiles = m.exitTiles[dir] || [];
+    if (!exitTiles.length) continue;
+    ctx.fillStyle = 'rgba(39,174,96,.35)';
+    for (const idx of exitTiles) {
+      if (dir === 'north') ctx.fillRect(idx*TILE, 0, TILE, TILE);
+      else if (dir === 'south') ctx.fillRect(idx*TILE, (ROWS-1)*TILE, TILE, TILE);
+      else if (dir === 'west') ctx.fillRect(0, idx*TILE, TILE, TILE);
+      else if (dir === 'east') ctx.fillRect((COLS-1)*TILE, idx*TILE, TILE, TILE);
+    }
+  }
+}
+
+function drawGrid() {
+  ctx.strokeStyle = 'rgba(255,255,255,.06)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x*TILE, 0); ctx.lineTo(x*TILE, ROWS*TILE); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y*TILE); ctx.lineTo(COLS*TILE, y*TILE); ctx.stroke();
+  }
+}
+
+function drawHover() {
+  if (ed.hoverX < 0 || ed.hoverY < 0) return;
+  const px = ed.hoverX * TILE, py = ed.hoverY * TILE;
+  if (ed.tool === 'paint' || ed.tool === 'fill') {
+    // Preview selected tile with transparency
+    ctx.globalAlpha = 0.5;
+    drawSingleTile(ctx, ed.selectedTile, ed.hoverX, ed.hoverY, px, py);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#e8c170'; ctx.lineWidth = 2;
+    ctx.strokeRect(px, py, TILE, TILE);
+  } else if (ed.tool === 'erase') {
+    ctx.fillStyle = 'rgba(231,76,60,.3)';
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2;
+    ctx.strokeRect(px, py, TILE, TILE);
+  } else {
+    ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 1;
+    ctx.strokeRect(px, py, TILE, TILE);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TILE PALETTE
+// ═══════════════════════════════════════════════════════════════════════════════
+function buildPalette() {
+  const pal = document.getElementById('tilePalette');
+  pal.innerHTML = '';
+  TILE_INFO.forEach((info, i) => {
+    const div = document.createElement('div');
+    div.className = 'tile-swatch' + (i === ed.selectedTile ? ' active' : '');
+    div.title = `${info.name} (${i})${info.solid ? ' [Solid]' : ''}`;
+    div.dataset.tile = i;
+    const c = document.createElement('canvas');
+    c.width = 32; c.height = 32;
+    const tc = c.getContext('2d');
+    drawSingleTile(tc, i, 1, 1, 0, 0);
+    div.appendChild(c);
+    const idSpan = document.createElement('span');
+    idSpan.className = 'tile-id';
+    idSpan.textContent = i;
+    div.appendChild(idSpan);
+    div.addEventListener('click', () => {
+      ed.selectedTile = i;
+      setTool('paint');
+      buildPalette();
+    });
+    pal.appendChild(div);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TOOL MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+function setTool(tool) {
+  ed.tool = tool;
+  ed.selType = null; ed.selIndex = -1;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  document.querySelectorAll('[data-place]').forEach(b => b.classList.remove('active'));
+  if (tool.startsWith('place_')) {
+    const placeType = tool.replace('place_', '');
+    document.querySelectorAll('[data-place]').forEach(b => b.classList.toggle('active', b.dataset.place === placeType));
+  }
+  canvas.style.cursor = (tool === 'select' || tool.startsWith('place_')) ? 'pointer' : 'crosshair';
+  updateProperties();
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAP MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+function updateMapSelect() {
+  const sel = document.getElementById('mapSelect');
+  sel.innerHTML = '';
+  for (const id of Object.keys(project.maps)) {
+    const opt = document.createElement('option');
+    opt.value = id; opt.textContent = project.maps[id].name || id;
+    if (id === ed.currentMap) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+function switchMap(id) {
+  if (!project.maps[id]) return;
+  ed.currentMap = id;
+  ed.selType = null; ed.selIndex = -1;
+  ed.undoStack = []; ed.undoPointer = -1;
+  pushUndo();
+  updateMapSelect();
+  updateProperties();
+  render();
+}
+
+function addMap() {
+  let id = 'map_' + Date.now();
+  const name = prompt('Map name:', 'New Map');
+  if (!name) return;
+  id = name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+  if (project.maps[id]) id += '_' + Date.now();
+  project.maps[id] = { name, tiles: makeEmptyTiles(), npcs: [], enemies: [], items: [], exits: {}, exitTiles: {} };
+  switchMap(id);
+}
+
+function deleteMap() {
+  const keys = Object.keys(project.maps);
+  if (keys.length <= 1) return alert('Cannot delete the last map.');
+  if (!confirm(`Delete map "${curMap().name}"?`)) return;
+  const id = ed.currentMap;
+  delete project.maps[id];
+  delete project.doorPortals[id];
+  // Clean references
+  for (const m of Object.values(project.maps)) {
+    for (const dir of Object.keys(m.exits)) {
+      if (m.exits[dir].map === id) { delete m.exits[dir]; delete m.exitTiles[dir]; }
+    }
+  }
+  if (project.startMap === id) project.startMap = Object.keys(project.maps)[0];
+  switchMap(Object.keys(project.maps)[0]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENTITY OPERATIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+function selectEntityAt(x, y) {
+  const map = curMap();
+  // Check NPCs first
+  for (let i = 0; i < map.npcs.length; i++) {
+    if (map.npcs[i].x === x && map.npcs[i].y === y) {
+      ed.selType = 'npc'; ed.selIndex = i; updateProperties(); render(); return true;
+    }
+  }
+  // Enemies
+  for (let i = 0; i < map.enemies.length; i++) {
+    if (map.enemies[i].x === x && map.enemies[i].y === y) {
+      ed.selType = 'enemy'; ed.selIndex = i; updateProperties(); render(); return true;
+    }
+  }
+  // Items
+  for (let i = 0; i < map.items.length; i++) {
+    if (map.items[i].x === x && map.items[i].y === y) {
+      ed.selType = 'item'; ed.selIndex = i; updateProperties(); render(); return true;
+    }
+  }
+  // Door portals
+  const portals = project.doorPortals[ed.currentMap] || [];
+  for (let i = 0; i < portals.length; i++) {
+    if (portals[i].x === x && portals[i].y === y) {
+      ed.selType = 'doorPortal'; ed.selIndex = i; updateProperties(); render(); return true;
+    }
+  }
+  ed.selType = null; ed.selIndex = -1;
+  updateProperties(); render();
+  return false;
+}
+
+function placeNpc(x, y) {
+  const map = curMap();
+  map.npcs.push({ x, y, name:'NPC', color:'#7eb8da', dir:0, dialogue:['Hello!'], npcType:'normal' });
+  ed.selType = 'npc'; ed.selIndex = map.npcs.length - 1;
+  setTool('select');
+  updateProperties(); render();
+}
+
+function placeEnemy(x, y) {
+  const map = curMap();
+  const firstType = Object.keys(project.enemyTypes)[0] || 'slime';
+  map.enemies.push({ x, y, type: firstType });
+  ed.selType = 'enemy'; ed.selIndex = map.enemies.length - 1;
+  setTool('select');
+  updateProperties(); render();
+}
+
+function placeItem(x, y) {
+  const map = curMap();
+  const firstItem = Object.keys(project.items)[0] || 'herb';
+  map.items.push({ x, y, item: firstItem });
+  ed.selType = 'item'; ed.selIndex = map.items.length - 1;
+  setTool('select');
+  updateProperties(); render();
+}
+
+function placeDoorPortal(x, y) {
+  // Set tile to door
+  curMap().tiles[y][x] = 5;
+  if (!project.doorPortals[ed.currentMap]) project.doorPortals[ed.currentMap] = [];
+  const maps = Object.keys(project.maps).filter(m => m !== ed.currentMap);
+  const targetMap = maps[0] || ed.currentMap;
+  project.doorPortals[ed.currentMap].push({ x, y, map: targetMap, spawnX:9, spawnY:9, locked:false, unlockFlag:'', lockedMsg:'' });
+  ed.selType = 'doorPortal'; ed.selIndex = project.doorPortals[ed.currentMap].length - 1;
+  setTool('select');
+  updateProperties(); render();
+}
+
+function deleteSelected() {
+  if (!ed.selType) return;
+  const map = curMap();
+  if (ed.selType === 'npc') map.npcs.splice(ed.selIndex, 1);
+  else if (ed.selType === 'enemy') map.enemies.splice(ed.selIndex, 1);
+  else if (ed.selType === 'item') map.items.splice(ed.selIndex, 1);
+  else if (ed.selType === 'doorPortal') {
+    const portals = project.doorPortals[ed.currentMap] || [];
+    portals.splice(ed.selIndex, 1);
+    if (portals.length === 0) delete project.doorPortals[ed.currentMap];
+  }
+  ed.selType = null; ed.selIndex = -1;
+  updateProperties(); render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FLOOD FILL
+// ═══════════════════════════════════════════════════════════════════════════════
+function floodFill(x, y, newTile) {
+  const tiles = curMap().tiles;
+  const oldTile = tiles[y][x];
+  if (oldTile === newTile) return;
+  pushUndo();
+  const stack = [[x, y]];
+  const visited = new Set();
+  while (stack.length) {
+    const [cx, cy] = stack.pop();
+    const key = cy * COLS + cx;
+    if (visited.has(key)) continue;
+    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) continue;
+    if (tiles[cy][cx] !== oldTile) continue;
+    visited.add(key);
+    tiles[cy][cx] = newTile;
+    stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENTITY LIST (left panel)
+// ═══════════════════════════════════════════════════════════════════════════════
+function updateEntityList() {
+  const list = document.getElementById('entityList');
+  const map = curMap();
+  let html = '';
+
+  map.npcs.forEach((npc, i) => {
+    const sel = ed.selType === 'npc' && ed.selIndex === i ? ' selected' : '';
+    html += `<div class="entity-item${sel}" data-type="npc" data-idx="${i}">
+      <span class="entity-dot" style="background:${npc.color||'#7eb8da'}"></span>
+      <span>${npc.name} (${npc.x},${npc.y})</span>
+    </div>`;
+  });
+  map.enemies.forEach((en, i) => {
+    const sel = ed.selType === 'enemy' && ed.selIndex === i ? ' selected' : '';
+    const def = project.enemyTypes[en.type];
+    html += `<div class="entity-item${sel}" data-type="enemy" data-idx="${i}">
+      <span class="entity-dot" style="background:${def?.color||'#e55'}"></span>
+      <span>${en.type} (${en.x},${en.y})</span>
+    </div>`;
+  });
+  map.items.forEach((it, i) => {
+    const sel = ed.selType === 'item' && ed.selIndex === i ? ' selected' : '';
+    const def = project.items[it.item];
+    html += `<div class="entity-item${sel}" data-type="item" data-idx="${i}">
+      <span class="entity-dot" style="background:${def?.color||'#aaa'}"></span>
+      <span>${it.item} (${it.x},${it.y})</span>
+    </div>`;
+  });
+  const portals = project.doorPortals[ed.currentMap] || [];
+  portals.forEach((p, i) => {
+    const sel = ed.selType === 'doorPortal' && ed.selIndex === i ? ' selected' : '';
+    html += `<div class="entity-item${sel}" data-type="doorPortal" data-idx="${i}">
+      <span class="entity-dot" style="background:#e8c170"></span>
+      <span>Door→${p.map} (${p.x},${p.y})</span>
+    </div>`;
+  });
+
+  if (!html) html = '<div style="color:var(--text2);font-size:11px;padding:4px">No entities on this map</div>';
+  list.innerHTML = html;
+
+  list.querySelectorAll('.entity-item').forEach(el => {
+    el.addEventListener('click', () => {
+      ed.selType = el.dataset.type;
+      ed.selIndex = parseInt(el.dataset.idx);
+      setTool('select');
+      updateProperties(); render();
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROPERTIES PANEL
+// ═══════════════════════════════════════════════════════════════════════════════
+function updateProperties() {
+  const panel = document.getElementById('propsContent');
+  if (ed.selType === 'npc') panel.innerHTML = renderNpcProps();
+  else if (ed.selType === 'enemy') panel.innerHTML = renderEnemyProps();
+  else if (ed.selType === 'item') panel.innerHTML = renderItemProps();
+  else if (ed.selType === 'doorPortal') panel.innerHTML = renderDoorProps();
+  else panel.innerHTML = renderMapProps();
+  bindPropsEvents();
+}
+
+function renderMapProps() {
+  const map = curMap();
+  const mapKeys = Object.keys(project.maps);
+  let html = '<h3>Map Properties</h3><div class="prop-group">';
+  html += `<label>Map Name</label><input id="propMapName" value="${esc(map.name)}">`;
+  html += `<label>Start Map</label><select id="propStartMap">`;
+  mapKeys.forEach(k => html += `<option value="${k}" ${project.startMap===k?'selected':''}>${project.maps[k].name}</option>`);
+  html += '</select></div>';
+
+  // Exits
+  html += '<h3>Exits</h3>';
+  for (const dir of ['north','south','east','west']) {
+    const exit = map.exits[dir];
+    const tiles = (map.exitTiles[dir] || []).join(',');
+    const hasExit = !!exit;
+    html += `<div class="prop-group" style="border-left:3px solid ${hasExit?'var(--green)':'var(--border)'};padding-left:8px;margin-bottom:8px">`;
+    html += `<div class="row"><strong style="color:var(--accent);width:50px">${dir}</strong>`;
+    html += `<label style="margin:0;display:inline"><input type="checkbox" class="exit-toggle" data-dir="${dir}" ${hasExit?'checked':''}> Enabled</label></div>`;
+    if (hasExit) {
+      html += `<div class="row" style="margin-top:4px">`;
+      html += `<div><label>Target Map</label><select class="exit-map" data-dir="${dir}">`;
+      mapKeys.filter(k=>k!==ed.currentMap).forEach(k => html += `<option value="${k}" ${exit.map===k?'selected':''}>${project.maps[k].name}</option>`);
+      html += '</select></div>';
+      html += `<div><label>Spawn X</label><input type="number" class="exit-sx" data-dir="${dir}" value="${exit.spawnX}" min="0" max="19"></div>`;
+      html += `<div><label>Spawn Y</label><input type="number" class="exit-sy" data-dir="${dir}" value="${exit.spawnY}" min="0" max="14"></div>`;
+      html += '</div>';
+      html += `<label>Exit Tiles (${dir==='north'||dir==='south'?'columns':'rows'}, comma-sep)</label>`;
+      html += `<input class="exit-tiles" data-dir="${dir}" value="${tiles}" placeholder="e.g. 8,9,10">`;
+    }
+    html += '</div>';
+  }
+
+  return html;
+}
+
+function renderNpcProps() {
+  const npc = curMap().npcs[ed.selIndex];
+  if (!npc) return renderMapProps();
+  const itemKeys = Object.keys(project.items);
+  const npcType = npc.trader ? 'trader' : (npc.questGive ? 'quest' : 'normal');
+  let html = '<h3>NPC Properties</h3><div class="prop-group">';
+  html += `<label>Name</label><input id="propNpcName" value="${esc(npc.name)}">`;
+  html += `<label>Color</label><div class="color-row"><input type="color" id="propNpcColorPick" value="${npc.color||'#7eb8da'}"><input type="text" id="propNpcColor" value="${npc.color||'#7eb8da'}"></div>`;
+  html += `<div class="row"><div><label>X</label><input type="number" id="propNpcX" value="${npc.x}" min="0" max="19"></div>`;
+  html += `<div><label>Y</label><input type="number" id="propNpcY" value="${npc.y}" min="0" max="14"></div>`;
+  html += `<div><label>Dir</label><select id="propNpcDir">${DIR_NAMES.map((d,i)=>`<option value="${i}" ${npc.dir===i?'selected':''}>${d}</option>`).join('')}</select></div></div>`;
+  html += `<label>Type</label><select id="propNpcType"><option value="normal" ${npcType==='normal'?'selected':''}>Normal</option><option value="trader" ${npcType==='trader'?'selected':''}>Trader</option><option value="quest" ${npcType==='quest'?'selected':''}>Quest Giver</option></select>`;
+  html += '</div>';
+
+  // Dialogue
+  html += '<h3>Dialogue</h3><div class="prop-group">';
+  html += `<textarea id="propNpcDialogue" rows="6" placeholder="One line per dialogue entry">${(npc.dialogue||[]).join('\n')}</textarea>`;
+  html += '</div>';
+
+  // Trader
+  if (npcType === 'trader') {
+    html += '<h3>Trades</h3><div class="prop-group">';
+    (npc.trades || []).forEach((t, i) => {
+      html += `<div class="trade-row" data-trade="${i}">`;
+      html += `<select class="trade-give" data-i="${i}">${itemKeys.map(k=>`<option value="${k}" ${t.give===k?'selected':''}>${project.items[k].name}</option>`).join('')}</select>`;
+      html += `<span>×</span><input type="number" class="trade-giveq" data-i="${i}" value="${t.giveQty||1}" min="1" style="width:36px">`;
+      html += `<span>→</span>`;
+      html += `<select class="trade-recv" data-i="${i}">${itemKeys.map(k=>`<option value="${k}" ${t.receive===k?'selected':''}>${project.items[k].name}</option>`).join('')}</select>`;
+      html += `<span>×</span><input type="number" class="trade-recvq" data-i="${i}" value="${t.receiveQty||1}" min="1" style="width:36px">`;
+      html += `<button class="danger trade-del" data-i="${i}" style="padding:2px 6px">×</button>`;
+      html += '</div>';
+    });
+    html += `<button class="success" id="addTrade" style="margin-top:4px">+ Add Trade</button>`;
+    html += '</div>';
+  }
+
+  // Quest
+  if (npcType === 'quest') {
+    const qg = npc.questGive || {};
+    html += '<h3>Quest Reward</h3><div class="prop-group">';
+    html += `<label>Flag Name</label><input id="propQuestFlag" value="${esc(qg.flag||'')}">`;
+    html += `<label>Reward Item</label><select id="propQuestItem"><option value="">None</option>${itemKeys.map(k=>`<option value="${k}" ${qg.item===k?'selected':''}>${project.items[k].name}</option>`).join('')}</select>`;
+    html += '</div>';
+  }
+
+  // Patrol
+  html += '<h3>Patrol Path</h3><div class="prop-group">';
+  const patrol = npc.patrol || [];
+  if (patrol.length) {
+    html += '<div style="font-size:11px;margin-bottom:4px">';
+    patrol.forEach((p,i) => html += `<span style="color:var(--accent)">[${p[0]},${p[1]}]</span>${i<patrol.length-1?' → ':''}`);
+    html += '</div>';
+  }
+  html += `<div class="inline-btns"><button id="editPatrol" class="primary">Edit Path</button><button id="clearPatrol" class="danger">Clear</button></div>`;
+  html += '</div>';
+
+  html += `<div style="margin-top:16px"><button class="danger" id="deleteEntity">Delete NPC</button></div>`;
+  return html;
+}
+
+function renderEnemyProps() {
+  const en = curMap().enemies[ed.selIndex];
+  if (!en) return renderMapProps();
+  const typeKeys = Object.keys(project.enemyTypes);
+  let html = '<h3>Enemy Properties</h3><div class="prop-group">';
+  html += `<label>Type</label><select id="propEnemyType">${typeKeys.map(k=>`<option value="${k}" ${en.type===k?'selected':''}>${project.enemyTypes[k].name} (${k})</option>`).join('')}</select>`;
+  html += `<div class="row"><div><label>X</label><input type="number" id="propEnemyX" value="${en.x}" min="0" max="19"></div>`;
+  html += `<div><label>Y</label><input type="number" id="propEnemyY" value="${en.y}" min="0" max="14"></div></div>`;
+  const def = project.enemyTypes[en.type];
+  if (def) {
+    html += '<h4>Type Stats</h4>';
+    html += `<div style="font-size:11px;color:var(--text2)">HP:${def.hp} ATK:${def.atk} XP:${def.xp} SPD:${def.speed}</div>`;
+  }
+  html += '</div>';
+  html += `<div style="margin-top:16px"><button class="danger" id="deleteEntity">Delete Enemy</button></div>`;
+  return html;
+}
+
+function renderItemProps() {
+  const it = curMap().items[ed.selIndex];
+  if (!it) return renderMapProps();
+  const itemKeys = Object.keys(project.items);
+  let html = '<h3>Map Item Properties</h3><div class="prop-group">';
+  html += `<label>Item</label><select id="propItemType">${itemKeys.map(k=>`<option value="${k}" ${it.item===k?'selected':''}>${project.items[k].name} (${k})</option>`).join('')}</select>`;
+  html += `<div class="row"><div><label>X</label><input type="number" id="propItemX" value="${it.x}" min="0" max="19"></div>`;
+  html += `<div><label>Y</label><input type="number" id="propItemY" value="${it.y}" min="0" max="14"></div></div>`;
+  const def = project.items[it.item];
+  if (def) {
+    html += `<h4>Item Info</h4><div style="font-size:11px;color:var(--text2)">${def.desc}</div>`;
+  }
+  html += '</div>';
+  html += `<div style="margin-top:16px"><button class="danger" id="deleteEntity">Delete Item</button></div>`;
+  return html;
+}
+
+function renderDoorProps() {
+  const portals = project.doorPortals[ed.currentMap] || [];
+  const p = portals[ed.selIndex];
+  if (!p) return renderMapProps();
+  const mapKeys = Object.keys(project.maps).filter(k => k !== ed.currentMap);
+  let html = '<h3>Door Portal Properties</h3><div class="prop-group">';
+  html += `<div class="row"><div><label>X</label><input type="number" id="propDoorX" value="${p.x}" min="0" max="19"></div>`;
+  html += `<div><label>Y</label><input type="number" id="propDoorY" value="${p.y}" min="0" max="14"></div></div>`;
+  html += `<label>Target Map</label><select id="propDoorMap">${mapKeys.map(k=>`<option value="${k}" ${p.map===k?'selected':''}>${project.maps[k].name}</option>`).join('')}</select>`;
+  html += `<div class="row"><div><label>Spawn X</label><input type="number" id="propDoorSX" value="${p.spawnX}" min="0" max="19"></div>`;
+  html += `<div><label>Spawn Y</label><input type="number" id="propDoorSY" value="${p.spawnY}" min="0" max="14"></div></div>`;
+  html += `<label><input type="checkbox" id="propDoorLocked" ${p.locked?'checked':''}> Locked</label>`;
+  if (p.locked) {
+    html += `<label>Unlock Flag</label><input id="propDoorFlag" value="${esc(p.unlockFlag||'')}">`;
+    html += `<label>Locked Message</label><input id="propDoorMsg" value="${esc(p.lockedMsg||'')}">`;
+  }
+  html += '</div>';
+  html += `<div style="margin-top:16px"><button class="danger" id="deleteEntity">Delete Portal</button></div>`;
+  return html;
+}
+
+function esc(s) { return String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROPERTIES EVENT BINDING
+// ═══════════════════════════════════════════════════════════════════════════════
+function bindPropsEvents() {
+  const panel = document.getElementById('propsContent');
+
+  // Map props
+  bindInput('propMapName', v => { curMap().name = v; updateMapSelect(); });
+  bindSelect('propStartMap', v => { project.startMap = v; });
+
+  // Exit toggles
+  panel.querySelectorAll('.exit-toggle').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const dir = cb.dataset.dir;
+      if (cb.checked) {
+        const maps = Object.keys(project.maps).filter(k => k !== ed.currentMap);
+        curMap().exits[dir] = { map: maps[0] || ed.currentMap, spawnX: 9, spawnY: dir==='north'?13:(dir==='south'?1:9) };
+        curMap().exitTiles[dir] = [9];
+      } else {
+        delete curMap().exits[dir]; delete curMap().exitTiles[dir];
+      }
+      updateProperties(); render();
+    });
+  });
+  panel.querySelectorAll('.exit-map').forEach(sel => {
+    sel.addEventListener('change', () => { curMap().exits[sel.dataset.dir].map = sel.value; });
+  });
+  panel.querySelectorAll('.exit-sx').forEach(inp => {
+    inp.addEventListener('input', () => { curMap().exits[inp.dataset.dir].spawnX = parseInt(inp.value)||0; });
+  });
+  panel.querySelectorAll('.exit-sy').forEach(inp => {
+    inp.addEventListener('input', () => { curMap().exits[inp.dataset.dir].spawnY = parseInt(inp.value)||0; });
+  });
+  panel.querySelectorAll('.exit-tiles').forEach(inp => {
+    inp.addEventListener('input', () => {
+      curMap().exitTiles[inp.dataset.dir] = inp.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+      render();
+    });
+  });
+
+  // NPC props
+  if (ed.selType === 'npc' && curMap().npcs[ed.selIndex]) {
+    const npc = curMap().npcs[ed.selIndex];
+    bindInput('propNpcName', v => { npc.name = v; render(); });
+    bindInput('propNpcColor', v => { npc.color = v; const pick = document.getElementById('propNpcColorPick'); if(pick) pick.value = v; render(); });
+    const colorPick = document.getElementById('propNpcColorPick');
+    if (colorPick) colorPick.addEventListener('input', () => { npc.color = colorPick.value; const txt = document.getElementById('propNpcColor'); if(txt) txt.value = colorPick.value; render(); });
+    bindNumber('propNpcX', v => { npc.x = v; render(); });
+    bindNumber('propNpcY', v => { npc.y = v; render(); });
+    bindSelect('propNpcDir', v => { npc.dir = parseInt(v); render(); });
+    bindSelect('propNpcType', v => {
+      delete npc.trader; delete npc.trades; delete npc.questGive;
+      npc.npcType = v;
+      if (v === 'trader') { npc.trader = true; npc.trades = npc.trades || []; }
+      if (v === 'quest') { npc.questGive = { flag: '', item: '' }; }
+      updateProperties(); render();
+    });
+    const dlg = document.getElementById('propNpcDialogue');
+    if (dlg) dlg.addEventListener('input', () => { npc.dialogue = dlg.value.split('\n').filter(l => l.trim()); });
+
+    // Trades
+    panel.querySelectorAll('.trade-give').forEach(sel => {
+      sel.addEventListener('change', () => { npc.trades[sel.dataset.i].give = sel.value; });
+    });
+    panel.querySelectorAll('.trade-giveq').forEach(inp => {
+      inp.addEventListener('input', () => { npc.trades[inp.dataset.i].giveQty = parseInt(inp.value)||1; });
+    });
+    panel.querySelectorAll('.trade-recv').forEach(sel => {
+      sel.addEventListener('change', () => { npc.trades[sel.dataset.i].receive = sel.value; });
+    });
+    panel.querySelectorAll('.trade-recvq').forEach(inp => {
+      inp.addEventListener('input', () => { npc.trades[inp.dataset.i].receiveQty = parseInt(inp.value)||1; });
+    });
+    panel.querySelectorAll('.trade-del').forEach(btn => {
+      btn.addEventListener('click', () => { npc.trades.splice(parseInt(btn.dataset.i), 1); updateProperties(); });
+    });
+    const addTrade = document.getElementById('addTrade');
+    if (addTrade) addTrade.addEventListener('click', () => {
+      const keys = Object.keys(project.items);
+      npc.trades = npc.trades || [];
+      npc.trades.push({ give: keys[0]||'herb', giveQty:1, receive: keys[0]||'herb', receiveQty:1 });
+      updateProperties();
+    });
+
+    // Quest
+    bindInput('propQuestFlag', v => { if(npc.questGive) npc.questGive.flag = v; });
+    bindSelect('propQuestItem', v => { if(npc.questGive) npc.questGive.item = v; });
+
+    // Patrol
+    const editPatrol = document.getElementById('editPatrol');
+    if (editPatrol) editPatrol.addEventListener('click', () => startPatrolEdit(npc));
+    const clearPatrol = document.getElementById('clearPatrol');
+    if (clearPatrol) clearPatrol.addEventListener('click', () => { delete npc.patrol; updateProperties(); render(); });
+  }
+
+  // Enemy props
+  if (ed.selType === 'enemy' && curMap().enemies[ed.selIndex]) {
+    const en = curMap().enemies[ed.selIndex];
+    bindSelect('propEnemyType', v => { en.type = v; updateProperties(); render(); });
+    bindNumber('propEnemyX', v => { en.x = v; render(); });
+    bindNumber('propEnemyY', v => { en.y = v; render(); });
+  }
+
+  // Item props
+  if (ed.selType === 'item' && curMap().items[ed.selIndex]) {
+    const it = curMap().items[ed.selIndex];
+    bindSelect('propItemType', v => { it.item = v; updateProperties(); render(); });
+    bindNumber('propItemX', v => { it.x = v; render(); });
+    bindNumber('propItemY', v => { it.y = v; render(); });
+  }
+
+  // Door portal props
+  if (ed.selType === 'doorPortal') {
+    const portals = project.doorPortals[ed.currentMap] || [];
+    const p = portals[ed.selIndex];
+    if (p) {
+      bindNumber('propDoorX', v => { p.x = v; curMap().tiles[p.y][v] = 5; render(); });
+      bindNumber('propDoorY', v => { p.y = v; curMap().tiles[v][p.x] = 5; render(); });
+      bindSelect('propDoorMap', v => { p.map = v; });
+      bindNumber('propDoorSX', v => { p.spawnX = v; });
+      bindNumber('propDoorSY', v => { p.spawnY = v; });
+      const lockCb = document.getElementById('propDoorLocked');
+      if (lockCb) lockCb.addEventListener('change', () => { p.locked = lockCb.checked; updateProperties(); });
+      bindInput('propDoorFlag', v => { p.unlockFlag = v; });
+      bindInput('propDoorMsg', v => { p.lockedMsg = v; });
+    }
+  }
+
+  // Delete button
+  const delBtn = document.getElementById('deleteEntity');
+  if (delBtn) delBtn.addEventListener('click', deleteSelected);
+}
+
+function bindInput(id, fn) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => fn(el.value));
+}
+function bindNumber(id, fn) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => fn(parseInt(el.value)||0));
+}
+function bindSelect(id, fn) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => fn(el.value));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PATROL PATH EDITING
+// ═══════════════════════════════════════════════════════════════════════════════
+let patrolEditNpc = null;
+
+function startPatrolEdit(npc) {
+  patrolEditNpc = npc;
+  npc.patrol = [];
+  ed.tool = 'patrol';
+  document.getElementById('statusTool').textContent = 'PATROL: Click waypoints, then press Enter or Escape';
+  canvas.style.cursor = 'crosshair';
+}
+
+function addPatrolWaypoint(x, y) {
+  if (!patrolEditNpc) return;
+  patrolEditNpc.patrol.push([x, y]);
+  render();
+  // Draw patrol points
+  const patrol = patrolEditNpc.patrol;
+  ctx.strokeStyle = '#f0d890';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  patrol.forEach((p, i) => {
+    if (i === 0) ctx.moveTo(p[0]*TILE+16, p[1]*TILE+16);
+    else ctx.lineTo(p[0]*TILE+16, p[1]*TILE+16);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+  patrol.forEach((p, i) => {
+    ctx.fillStyle = '#e8c170';
+    ctx.beginPath(); ctx.arc(p[0]*TILE+16, p[1]*TILE+16, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(i+1, p[0]*TILE+16, p[1]*TILE+19);
+  });
+}
+
+function finishPatrolEdit() {
+  patrolEditNpc = null;
+  ed.tool = 'select';
+  updateProperties(); render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════════════════════════════════════════════
+function openModal(title, bodyHtml, footerHtml, wide) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = bodyHtml;
+  document.getElementById('modalFooter').innerHTML = footerHtml || '';
+  document.getElementById('modal').classList.toggle('wide', !!wide);
+  document.getElementById('modalOverlay').classList.add('visible');
+}
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('visible');
+}
+
+// --- Player Settings ---
+function showPlayerSettings() {
+  const p = project.player;
+  const c = project.combat;
+  const html = `
+    <div class="form-row">
+      <div><label>Name</label><input id="mPlayerName" value="${esc(p.name)}"></div>
+      <div><label>Start X</label><input type="number" id="mPlayerX" value="${p.x}" min="0" max="19"></div>
+      <div><label>Start Y</label><input type="number" id="mPlayerY" value="${p.y}" min="0" max="14"></div>
+    </div>
+    <div class="form-row">
+      <div><label>HP</label><input type="number" id="mPlayerHP" value="${p.hp}" min="1"></div>
+      <div><label>MP</label><input type="number" id="mPlayerMP" value="${p.mp}" min="0"></div>
+      <div><label>ATK</label><input type="number" id="mPlayerATK" value="${p.atk}" min="1"></div>
+    </div>
+    <h4>Combat</h4>
+    <div class="form-row">
+      <div><label><input type="checkbox" id="mCombatDash" ${c.dash?'checked':''}> Dash Attack (E/X key)</label></div>
+      <div><label><input type="checkbox" id="mCombatGun" ${c.gun?'checked':''}> Gun (F key)</label></div>
+    </div>
+  `;
+  openModal('Player Settings', html, '<button class="primary" id="mPlayerSave">Save</button>');
+  document.getElementById('mPlayerSave').addEventListener('click', () => {
+    p.name = document.getElementById('mPlayerName').value;
+    p.x = parseInt(document.getElementById('mPlayerX').value)||0;
+    p.y = parseInt(document.getElementById('mPlayerY').value)||0;
+    p.hp = parseInt(document.getElementById('mPlayerHP').value)||20;
+    p.mp = parseInt(document.getElementById('mPlayerMP').value)||10;
+    p.atk = parseInt(document.getElementById('mPlayerATK').value)||2;
+    c.dash = document.getElementById('mCombatDash').checked;
+    c.gun = document.getElementById('mCombatGun').checked;
+    closeModal();
+  });
+}
+
+// --- Item Definitions ---
+function showItemDefs() {
+  let html = '<p style="font-size:11px;color:var(--text2);margin-bottom:8px">Define items that can be placed on maps, given by NPCs, or traded.</p>';
+  html += '<table><tr><th>ID</th><th>Name</th><th>Color</th><th>Icon</th><th>Desc</th><th>Heal</th><th>Wpn ATK</th><th></th></tr>';
+  for (const [id, item] of Object.entries(project.items)) {
+    html += `<tr data-item="${id}">`;
+    html += `<td><input class="iId" value="${id}" data-old="${id}" style="width:60px"></td>`;
+    html += `<td><input class="iName" value="${esc(item.name)}"></td>`;
+    html += `<td><input type="color" class="iColor" value="${item.color}"></td>`;
+    html += `<td><select class="iIcon">${ITEM_ICONS.map(ic=>`<option ${item.icon===ic?'selected':''}>${ic}</option>`).join('')}</select></td>`;
+    html += `<td><input class="iDesc" value="${esc(item.desc)}"></td>`;
+    html += `<td><input type="number" class="iHeal" value="${item.heal||0}" min="0"></td>`;
+    html += `<td><input type="number" class="iAtk" value="${item.atk||0}" min="0"></td>`;
+    html += `<td><button class="danger iDel" style="padding:2px 6px">×</button></td>`;
+    html += '</tr>';
+  }
+  html += '</table>';
+  html += '<button class="success" id="mAddItem" style="margin-top:8px">+ Add Item</button>';
+
+  openModal('Item Definitions', html, '<button class="primary" id="mItemSave">Save</button>', true);
+
+  document.getElementById('mAddItem').addEventListener('click', () => {
+    const newId = 'item_' + Date.now();
+    project.items[newId] = { name:'New Item', color:'#aaaaaa', icon:'gem', desc:'A new item.', heal:0 };
+    showItemDefs();
+  });
+
+  document.querySelectorAll('.iDel').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.closest('tr').dataset.item;
+      delete project.items[id];
+      showItemDefs();
+    });
+  });
+
+  document.getElementById('mItemSave').addEventListener('click', () => {
+    const newItems = {};
+    document.querySelectorAll('#modalBody tr[data-item]').forEach(tr => {
+      const oldId = tr.dataset.item;
+      const newId = tr.querySelector('.iId').value.trim() || oldId;
+      newItems[newId] = {
+        name: tr.querySelector('.iName').value,
+        color: tr.querySelector('.iColor').value,
+        icon: tr.querySelector('.iIcon').value,
+        desc: tr.querySelector('.iDesc').value,
+        heal: parseInt(tr.querySelector('.iHeal').value) || 0,
+      };
+      const atk = parseInt(tr.querySelector('.iAtk').value) || 0;
+      if (atk > 0) { newItems[newId].weapon = true; newItems[newId].atk = atk; }
+      if (newItems[newId].heal === 0) delete newItems[newId].heal;
+    });
+    project.items = newItems;
+    closeModal();
+    updateProperties();
+  });
+}
+
+// --- Enemy Type Definitions ---
+function showEnemyDefs() {
+  let html = '<p style="font-size:11px;color:var(--text2);margin-bottom:8px">Define enemy types. The ID should match a built-in sprite: ' + ENEMY_SPRITES.join(', ') + '</p>';
+  html += '<table><tr><th>ID/Sprite</th><th>Name</th><th>Color</th><th>HP</th><th>ATK</th><th>XP</th><th>Speed</th><th>Drops</th><th></th></tr>';
+  for (const [id, en] of Object.entries(project.enemyTypes)) {
+    html += `<tr data-enemy="${id}">`;
+    html += `<td><select class="eId" data-old="${id}">${ENEMY_SPRITES.map(s=>`<option ${id===s?'selected':''}>${s}</option>`).join('')}<option ${!ENEMY_SPRITES.includes(id)?'selected':''} value="${id}">${ENEMY_SPRITES.includes(id)?'':'custom: '+id}</option></select></td>`;
+    html += `<td><input class="eName" value="${esc(en.name)}"></td>`;
+    html += `<td><input type="color" class="eColor" value="${en.color}"></td>`;
+    html += `<td><input type="number" class="eHP" value="${en.hp}" min="1"></td>`;
+    html += `<td><input type="number" class="eATK" value="${en.atk}" min="0"></td>`;
+    html += `<td><input type="number" class="eXP" value="${en.xp}" min="0"></td>`;
+    html += `<td><input type="number" class="eSpd" value="${en.speed}" min="0.1" max="3" step="0.1" style="width:50px"></td>`;
+    html += `<td><input class="eDrops" value="${(en.drops||[]).join(',')}" placeholder="herb,potion" style="width:80px"></td>`;
+    html += `<td><button class="danger eDel" style="padding:2px 6px">×</button></td>`;
+    html += '</tr>';
+  }
+  html += '</table>';
+  html += '<button class="success" id="mAddEnemy" style="margin-top:8px">+ Add Enemy Type</button>';
+
+  openModal('Enemy Type Definitions', html, '<button class="primary" id="mEnemySave">Save</button>', true);
+
+  document.getElementById('mAddEnemy').addEventListener('click', () => {
+    const available = ENEMY_SPRITES.filter(s => !project.enemyTypes[s]);
+    const newId = available[0] || 'enemy_' + Date.now();
+    project.enemyTypes[newId] = { name:'New Enemy', color:'#cc5555', hp:10, atk:2, xp:10, speed:0.8, drops:[] };
+    showEnemyDefs();
+  });
+
+  document.querySelectorAll('.eDel').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.closest('tr').dataset.enemy;
+      delete project.enemyTypes[id];
+      showEnemyDefs();
+    });
+  });
+
+  document.getElementById('mEnemySave').addEventListener('click', () => {
+    const newTypes = {};
+    document.querySelectorAll('#modalBody tr[data-enemy]').forEach(tr => {
+      const sel = tr.querySelector('.eId');
+      const newId = sel.value.trim() || tr.dataset.enemy;
+      newTypes[newId] = {
+        name: tr.querySelector('.eName').value,
+        color: tr.querySelector('.eColor').value,
+        hp: parseInt(tr.querySelector('.eHP').value) || 10,
+        atk: parseInt(tr.querySelector('.eATK').value) || 2,
+        xp: parseInt(tr.querySelector('.eXP').value) || 10,
+        speed: parseFloat(tr.querySelector('.eSpd').value) || 0.8,
+        drops: tr.querySelector('.eDrops').value.split(',').map(s=>s.trim()).filter(Boolean),
+      };
+    });
+    project.enemyTypes = newTypes;
+    closeModal();
+    updateProperties(); render();
+  });
+}
+
+// --- Win Condition ---
+function showWinCondition() {
+  const w = project.winCondition;
+  const itemKeys = Object.keys(project.items);
+  const html = `
+    <div class="form-row">
+      <div>
+        <label>Trigger Type</label>
+        <select id="mWinType">
+          <option value="item" ${w.type==='item'?'selected':''}>Pick up item</option>
+          <option value="flag" ${w.type==='flag'?'selected':''}>Flag set (from NPC quest)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div><label>Item (if item trigger)</label>
+        <select id="mWinItem"><option value="">-- select --</option>${itemKeys.map(k=>`<option value="${k}" ${w.item===k?'selected':''}>${project.items[k].name}</option>`).join('')}</select>
+      </div>
+      <div><label>Flag (if flag trigger)</label><input id="mWinFlag" value="${esc(w.flag||'')}"></div>
+    </div>
+    <div class="form-row">
+      <div><label>Victory Title</label><input id="mWinTitle" value="${esc(w.title)}"></div>
+    </div>
+    <div class="form-row">
+      <div><label>Victory Message</label><textarea id="mWinMsg" rows="3">${esc(w.message)}</textarea></div>
+    </div>
+  `;
+  openModal('Win Condition', html, '<button class="primary" id="mWinSave">Save</button>');
+  document.getElementById('mWinSave').addEventListener('click', () => {
+    project.winCondition = {
+      type: document.getElementById('mWinType').value,
+      item: document.getElementById('mWinItem').value,
+      flag: document.getElementById('mWinFlag').value,
+      title: document.getElementById('mWinTitle').value,
+      message: document.getElementById('mWinMsg').value,
+    };
+    closeModal();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════════════════════════
+function generateExport() {
+  // Compute solidTiles and treeTiles from TILE_INFO
+  const usedTiles = new Set();
+  for (const m of Object.values(project.maps)) {
+    for (const row of m.tiles) for (const t of row) usedTiles.add(t);
+  }
+  const solidTiles = [...usedTiles].filter(t => TILE_INFO[t]?.solid).sort((a,b)=>a-b);
+  const treeTiles = [...usedTiles].filter(t => TILE_INFO[t]?.tree).sort((a,b)=>a-b);
+
+  // Build config object
+  const cfg = {};
+  cfg.title = project.title;
+  cfg.solidTiles = solidTiles;
+  cfg.treeTiles = treeTiles;
+  cfg.player = { ...project.player };
+  cfg.combat = { ...project.combat };
+  cfg.startMap = project.startMap;
+
+  // Win condition
+  const w = project.winCondition;
+  if (w.type === 'item' && w.item) {
+    cfg.winCondition = { item: w.item, title: w.title, message: w.message };
+  } else if (w.type === 'flag' && w.flag) {
+    cfg.winCondition = { flag: w.flag, title: w.title, message: w.message };
+  }
+
+  cfg.items = {};
+  for (const [id, item] of Object.entries(project.items)) {
+    const def = { name: item.name, color: item.color, icon: item.icon, desc: item.desc };
+    if (item.heal) def.heal = item.heal;
+    if (item.weapon) { def.weapon = true; def.atk = item.atk; }
+    cfg.items[id] = def;
+  }
+
+  cfg.enemyTypes = {};
+  for (const [id, en] of Object.entries(project.enemyTypes)) {
+    cfg.enemyTypes[id] = { name:en.name, color:en.color, hp:en.hp, atk:en.atk, xp:en.xp, speed:en.speed, drops:en.drops||[] };
+  }
+
+  cfg.maps = {};
+  for (const [id, m] of Object.entries(project.maps)) {
+    const mapDef = { name: m.name, tiles: m.tiles };
+    // NPCs
+    mapDef.npcs = m.npcs.map(npc => {
+      const n = { x: npc.x, y: npc.y, name: npc.name, color: npc.color, dir: npc.dir };
+      if (npc.dialogue?.length) n.dialogue = npc.dialogue;
+      if (npc.trader) { n.trader = true; n.trades = npc.trades || []; }
+      if (npc.questGive && npc.questGive.flag) n.questGive = npc.questGive;
+      if (npc.patrol?.length) n.patrol = npc.patrol;
+      return n;
+    });
+    // Exits
+    mapDef.exits = m.exits || {};
+    mapDef.exitTiles = m.exitTiles || {};
+    // Items
+    mapDef.items = m.items.map(i => ({ x:i.x, y:i.y, item:i.item }));
+    // Enemies
+    mapDef.enemies = m.enemies.map(e => ({ x:e.x, y:e.y, type:e.type }));
+    cfg.maps[id] = mapDef;
+  }
+
+  // Door portals
+  if (Object.keys(project.doorPortals).length) {
+    cfg.doorPortals = {};
+    for (const [mapId, portals] of Object.entries(project.doorPortals)) {
+      cfg.doorPortals[mapId] = portals.map(p => {
+        const d = { x:p.x, y:p.y, map:p.map, spawnX:p.spawnX, spawnY:p.spawnY, locked:!!p.locked };
+        if (p.locked) { d.unlockFlag = p.unlockFlag; d.lockedMsg = p.lockedMsg; }
+        return d;
+      });
+    }
+  }
+
+  return cfg;
+}
+
+function configToJs(cfg, indent) {
+  return JSON.stringify(cfg, null, indent)
+    .replace(/"(\w+)":/g, '$1:')                         // unquote keys
+    .replace(/:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/g, (m, v) => // single-quote string values
+      ": '" + v.replace(/\\"/g, '"').replace(/'/g, "\\'") + "'");
+}
+
+function showExport() {
+  const cfg = generateExport();
+  const cfgStr = configToJs(cfg, 2);
+  const gameHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${project.title}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#111;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden}canvas{image-rendering:pixelated;border:2px solid #333}</style>
+</head><body><canvas id="game"></canvas>
+<script src="rpg-engine.js"><\/script>
+<script>
+RPG.create(${cfgStr});
+<\/script></body></html>`;
+
+  const html = `
+    <p style="font-size:11px;color:var(--text2);margin-bottom:8px">Copy or download the generated game HTML. Place it alongside rpg-engine.js to play.</p>
+    <textarea id="exportArea" readonly>${gameHtml.replace(/</g,'&lt;')}</textarea>
+  `;
+  openModal('Export Game', html, '<button class="primary" id="mCopyExport">Copy to Clipboard</button> <button class="success" id="mDownloadExport">Download HTML</button>', true);
+
+  document.getElementById('exportArea').value = gameHtml;
+
+  document.getElementById('mCopyExport').addEventListener('click', () => {
+    navigator.clipboard.writeText(gameHtml).then(() => {
+      document.getElementById('mCopyExport').textContent = 'Copied!';
+      setTimeout(() => document.getElementById('mCopyExport').textContent = 'Copy to Clipboard', 1500);
+    });
+  });
+
+  document.getElementById('mDownloadExport').addEventListener('click', () => {
+    const blob = new Blob([gameHtml], { type: 'text/html' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = project.title.toLowerCase().replace(/[^a-z0-9]/g, '_') + '.html';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SAVE / LOAD
+// ═══════════════════════════════════════════════════════════════════════════════
+function saveProject() {
+  const data = JSON.stringify(project);
+  localStorage.setItem('rpg_editor_project', data);
+  const btn = document.getElementById('btnSave');
+  btn.textContent = 'Saved!';
+  setTimeout(() => btn.textContent = 'Save', 1500);
+}
+
+function loadProject() {
+  const data = localStorage.getItem('rpg_editor_project');
+  if (!data) return alert('No saved project found.');
+  if (!confirm('Load saved project? Current work will be lost.')) return;
+  project = JSON.parse(data);
+  ed.currentMap = project.startMap || Object.keys(project.maps)[0];
+  ed.selType = null; ed.selIndex = -1;
+  ed.undoStack = []; ed.undoPointer = -1;
+  pushUndo();
+  document.getElementById('projectTitle').value = project.title;
+  updateMapSelect();
+  updateProperties();
+  buildPalette();
+  render();
+}
+
+function loadFromFile() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        project = JSON.parse(reader.result);
+        ed.currentMap = project.startMap || Object.keys(project.maps)[0];
+        ed.selType = null; ed.selIndex = -1;
+        document.getElementById('projectTitle').value = project.title;
+        updateMapSelect(); updateProperties(); buildPalette(); render();
+      } catch(e) { alert('Invalid project file.'); }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
+function saveToFile() {
+  const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = project.title.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_project.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATUS BAR
+// ═══════════════════════════════════════════════════════════════════════════════
+function updateStatusBar() {
+  const toolNames = { paint:'Paint', fill:'Fill', erase:'Erase', select:'Select', place_npc:'Place NPC', place_enemy:'Place Enemy', place_item:'Place Item', place_door:'Place Door', patrol:'Patrol Edit' };
+  document.getElementById('statusTool').textContent = 'Tool: ' + (toolNames[ed.tool] || ed.tool);
+  const x = ed.hoverX, y = ed.hoverY;
+  document.getElementById('statusPos').textContent = x >= 0 ? `Pos: ${x},${y}` : 'Pos: -';
+  if (x >= 0 && y >= 0) {
+    const t = curMap().tiles[y][x];
+    document.getElementById('statusTile').textContent = `Tile: ${TILE_INFO[t]?.name||'?'} (${t})`;
+  }
+  document.getElementById('statusMap').textContent = `Map: ${curMap().name} [${ed.currentMap}]${project.startMap===ed.currentMap?' ★':''}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════════
+function getGridPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = Math.floor((e.clientX - rect.left) * scaleX / TILE);
+  const y = Math.floor((e.clientY - rect.top) * scaleY / TILE);
+  return { x: Math.max(0, Math.min(COLS-1, x)), y: Math.max(0, Math.min(ROWS-1, y)) };
+}
+
+canvas.addEventListener('mousedown', e => {
+  const { x, y } = getGridPos(e);
+
+  if (ed.tool === 'patrol') {
+    addPatrolWaypoint(x, y);
+    return;
+  }
+
+  if (ed.tool === 'select') {
+    selectEntityAt(x, y);
+    return;
+  }
+
+  if (ed.tool === 'place_npc') { placeNpc(x, y); return; }
+  if (ed.tool === 'place_enemy') { placeEnemy(x, y); return; }
+  if (ed.tool === 'place_item') { placeItem(x, y); return; }
+  if (ed.tool === 'place_door') { placeDoorPortal(x, y); return; }
+
+  if (ed.tool === 'fill') {
+    floodFill(x, y, ed.selectedTile);
+    render();
+    return;
+  }
+
+  // Paint or erase
+  ed.isPainting = true;
+  pushUndo();
+  const tile = ed.tool === 'erase' ? 0 : ed.selectedTile;
+  curMap().tiles[y][x] = tile;
+  render();
+});
+
+canvas.addEventListener('mousemove', e => {
+  const { x, y } = getGridPos(e);
+  ed.hoverX = x; ed.hoverY = y;
+
+  if (ed.isPainting && (ed.tool === 'paint' || ed.tool === 'erase')) {
+    const tile = ed.tool === 'erase' ? 0 : ed.selectedTile;
+    curMap().tiles[y][x] = tile;
+  }
+  render();
+});
+
+canvas.addEventListener('mouseup', () => { ed.isPainting = false; });
+canvas.addEventListener('mouseleave', () => { ed.isPainting = false; ed.hoverX = -1; ed.hoverY = -1; render(); });
+
+// Right-click erases
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const { x, y } = getGridPos(e);
+  pushUndo();
+  curMap().tiles[y][x] = 0;
+  render();
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+  if (ed.tool === 'patrol' && (e.key === 'Enter' || e.key === 'Escape')) {
+    finishPatrolEdit();
+    return;
+  }
+
+  if (e.key === 'p' || e.key === 'P') setTool('paint');
+  else if (e.key === 'f' || e.key === 'F') setTool('fill');
+  else if (e.key === 'e' || e.key === 'E') setTool('erase');
+  else if (e.key === 's' && !e.ctrlKey && !e.metaKey) setTool('select');
+  else if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
+  else if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveProject(); }
+
+  // Number keys for quick tile select (1-9 → tiles 0-8)
+  if (e.key >= '1' && e.key <= '9') {
+    const idx = parseInt(e.key) - 1;
+    if (idx < TILE_INFO.length) { ed.selectedTile = idx; setTool('paint'); buildPalette(); }
+  }
+});
+
+// Tool buttons
+document.querySelectorAll('.tool-btn').forEach(btn => {
+  btn.addEventListener('click', () => setTool(btn.dataset.tool));
+});
+
+// Entity placement buttons
+document.querySelectorAll('[data-place]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const place = btn.dataset.place;
+    const tool = 'place_' + place;
+    if (ed.tool === tool) { setTool('select'); return; } // toggle off
+    ed.tool = tool;
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('[data-place]').forEach(b => b.classList.toggle('active', b.dataset.place === place));
+    canvas.style.cursor = 'pointer';
+    updateStatusBar();
+  });
+});
+
+// Top bar buttons
+document.getElementById('mapSelect').addEventListener('change', e => switchMap(e.target.value));
+document.getElementById('btnAddMap').addEventListener('click', addMap);
+document.getElementById('btnDelMap').addEventListener('click', deleteMap);
+document.getElementById('btnPlayer').addEventListener('click', showPlayerSettings);
+document.getElementById('btnItemDefs').addEventListener('click', showItemDefs);
+document.getElementById('btnEnemyDefs').addEventListener('click', showEnemyDefs);
+document.getElementById('btnWinCond').addEventListener('click', showWinCondition);
+document.getElementById('btnExport').addEventListener('click', showExport);
+document.getElementById('btnSave').addEventListener('click', saveProject);
+document.getElementById('btnLoad').addEventListener('click', loadProject);
+document.getElementById('modalClose').addEventListener('click', closeModal);
+document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+document.getElementById('projectTitle').addEventListener('input', e => { project.title = e.target.value; });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════════
+function init() {
+  // Try auto-load from localStorage
+  const saved = localStorage.getItem('rpg_editor_project');
+  if (saved) {
+    try {
+      project = JSON.parse(saved);
+      ed.currentMap = project.startMap || Object.keys(project.maps)[0];
+      document.getElementById('projectTitle').value = project.title;
+    } catch(e) { project = createDefaultProject(); }
+  }
+
+  pushUndo();
+  buildPalette();
+  updateMapSelect();
+  updateProperties();
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
