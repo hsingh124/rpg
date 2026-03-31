@@ -688,8 +688,16 @@ const RPG = {
     function enemyDash(e, et, enemies) {
       const { dx, dy } = getDirDelta(e.dir);
       const dashDist = et.dashDist || 3;
+      // Cap dash distance at the player's position along the dash axis
+      // so the enemy doesn't overshoot past the player's row/column
+      let targetDist = dashDist;
+      if (dx !== 0 && Math.sign(player.x - e.x) === dx) {
+        targetDist = Math.min(dashDist, Math.abs(player.x - e.x));
+      } else if (dy !== 0 && Math.sign(player.y - e.y) === dy) {
+        targetDist = Math.min(dashDist, Math.abs(player.y - e.y));
+      }
       let dist = 0;
-      for (let i = 1; i <= dashDist; i++) {
+      for (let i = 1; i <= targetDist; i++) {
         const nx = e.x + dx * i, ny = e.y + dy * i;
         if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) break;
         if (SOLID.has(currentMap().tiles[ny][nx])) break;
@@ -697,7 +705,7 @@ const RPG = {
         if (enemies.some(o => o !== e && o.alive && o.x === nx && o.y === ny)) break;
         dist = i;
       }
-      if (dist < 2) return false;
+      if (dist < 1) return false;
       e.dashing = true; e.dashTimer = 0;
       e.dashFromX = e.x; e.dashFromY = e.y;
       e.dashToX = e.x + dx * dist; e.dashToY = e.y + dy * dist;

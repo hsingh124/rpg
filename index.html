@@ -1877,7 +1877,7 @@ function configToJs(cfg, indent) {
 function playProject() {
   const cfg = generateExport();
   const cfgStr = configToJs(cfg, 2);
-  const engineUrl = 'https://hsingh124.github.io/rpg/rpg-engine.js';
+  const engineUrl = new URL('rpg-engine.js', window.location.href).href;
   const gameHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${project.title}</title>
