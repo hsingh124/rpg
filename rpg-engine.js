@@ -23,7 +23,12 @@ const RPG = {
 
     // Split maps config into MAPS + MAP_ITEMS + MAP_ENEMIES
     for (const [id, m] of Object.entries(cfg.maps)) {
-      MAPS[id] = { name: m.name, tiles: m.tiles, npcs: m.npcs || [], exits: m.exits || {}, exitTiles: m.exitTiles || {} };
+      const npcs = (m.npcs || []).map(n => ({
+        ...n, moving: false, moveT: 0, fromX: n.x, fromY: n.y,
+        moveTimer: 2 + Math.random() * 4, animFrame: 0, animTimer: 0,
+        patrolIndex: 0, originX: n.x, originY: n.y,
+      }));
+      MAPS[id] = { name: m.name, tiles: m.tiles, npcs, exits: m.exits || {}, exitTiles: m.exitTiles || {} };
       MAP_ITEMS[id] = (m.items || []).map(i => ({ ...i }));
       MAP_ENEMIES[id] = (m.enemies || []).map(e => {
         const t = ENEMY_TYPES[e.type];
@@ -559,7 +564,15 @@ const RPG = {
       let tx = player.x, ty = player.y;
       if (player.dir === 0) ty++; else if (player.dir === 3) ty--;
       else if (player.dir === 1) tx--; else tx++;
-      for (const npc of currentMap().npcs) { if (npc.x === tx && npc.y === ty) { dialogueState = { npc, line: 0 }; return; } }
+      for (const npc of currentMap().npcs) {
+        if (npc.x === tx && npc.y === ty) {
+          npc.moving = false; npc.moveT = 0; // Stop NPC
+          // Face the player
+          if (player.dir === 0) npc.dir = 3; else if (player.dir === 3) npc.dir = 0;
+          else if (player.dir === 1) npc.dir = 2; else npc.dir = 1;
+          dialogueState = { npc, line: 0 }; return;
+        }
+      }
       if (tryDoorPortal(tx, ty)) return;
     }
 
@@ -730,6 +743,74 @@ const RPG = {
       e.rangedCooldown = et.rangedCooldown || 2.0;
     }
 
+    // --- NPC Movement AI ---
+    function npcAI(dt) {
+      const npcs = currentMap().npcs;
+      const enemies = MAP_ENEMIES[currentMapId] || [];
+      for (const n of npcs) {
+        // Animation timer
+        if (n.moving) {
+          n.animTimer += dt;
+          if (n.animTimer > 0.2) { n.animTimer = 0; n.animFrame = (n.animFrame + 1) % 4; }
+        }
+        // Movement lerp
+        if (n.moving) {
+          const spd = n.speed || 2;
+          n.moveT += dt * spd;
+          if (n.moveT >= 1) { n.moving = false; n.moveT = 0; n.animFrame = 0; }
+          continue;
+        }
+        // Skip if NPC doesn't wander
+        if (!n.wander && !n.patrol) continue;
+
+        n.moveTimer -= dt;
+        if (n.moveTimer > 0) continue;
+        n.moveTimer = (n.pauseTime || 3) + Math.random() * (n.pauseTime || 3);
+
+        let mx = 0, my = 0;
+        if (n.patrol && n.patrol.length > 1) {
+          // Patrol: move toward next waypoint
+          const wp = n.patrol[n.patrolIndex];
+          const dx = wp[0] - n.x, dy = wp[1] - n.y;
+          if (dx === 0 && dy === 0) {
+            n.patrolIndex = (n.patrolIndex + 1) % n.patrol.length;
+            n.moveTimer = 0.1; continue;
+          }
+          if (Math.abs(dx) >= Math.abs(dy)) mx = dx > 0 ? 1 : -1;
+          else my = dy > 0 ? 1 : -1;
+        } else if (n.wander) {
+          // Wander: random direction within radius
+          const r = Math.floor(Math.random() * 4);
+          if (r === 0) my = -1; else if (r === 1) my = 1; else if (r === 2) mx = -1; else mx = 1;
+          // Stay within wander radius of origin
+          const ox = n.originX !== undefined ? n.originX : n.x;
+          const oy = n.originY !== undefined ? n.originY : n.y;
+          const wr = n.wanderRadius || 3;
+          const nx = n.x + mx, ny = n.y + my;
+          if (Math.abs(nx - ox) > wr || Math.abs(ny - oy) > wr) {
+            // Walk back toward origin
+            mx = ox > n.x ? 1 : ox < n.x ? -1 : 0;
+            my = oy > n.y ? 1 : oy < n.y ? -1 : 0;
+          }
+        }
+        if (mx === 0 && my === 0) continue;
+        // Update facing
+        if (my === -1) n.dir = 3; else if (my === 1) n.dir = 0;
+        else if (mx === -1) n.dir = 1; else if (mx === 1) n.dir = 2;
+        // Check collision
+        const nx = n.x + mx, ny = n.y + my;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+        if (SOLID.has(currentMap().tiles[ny][nx])) continue;
+        if (nx === player.x && ny === player.y) continue;
+        if (npcs.some(o => o !== n && o.x === nx && o.y === ny)) continue;
+        if (enemies.some(e => e.alive && e.x === nx && e.y === ny)) continue;
+        // Start moving
+        n.fromX = n.x; n.fromY = n.y;
+        n.x = nx; n.y = ny;
+        n.moving = true; n.moveT = 0;
+      }
+    }
+
     function enemyAI(dt) {
       const enemies = MAP_ENEMIES[currentMapId] || [];
       for (const e of enemies) {
@@ -859,6 +940,7 @@ const RPG = {
         if (!hit && pr.life <= 0) projectiles.splice(i, 1);
       }
       enemyAI(dt);
+      npcAI(dt);
       // Enemy afterimages
       for (let i = enemyAfterimages.length - 1; i >= 0; i--) { enemyAfterimages[i].timer -= dt; if (enemyAfterimages[i].timer <= 0) enemyAfterimages.splice(i, 1); }
       // Enemy projectiles (hit player)
@@ -1211,7 +1293,10 @@ const RPG = {
       drawGroundItems();
       // Y-sorted entities
       const entities = [];
-      map.npcs.forEach(n => entities.push({ type: 'npc', y: n.y, obj: n }));
+      map.npcs.forEach(n => {
+        const ny = n.moving ? lerp(n.fromY, n.y, n.moveT) : n.y;
+        entities.push({ type: 'npc', y: ny, obj: n });
+      });
       (MAP_ENEMIES[currentMapId] || []).forEach(e => { if (e.alive) {
         let ey = e.y;
         if (e.dashing) { const t = Math.min(e.dashTimer / (e.dashDuration || 0.12), 1); ey = lerp(e.dashFromY, e.dashToY, t); }
@@ -1222,7 +1307,14 @@ const RPG = {
       entities.sort((a, b) => a.y - b.y);
       for (const e of entities) {
         if (e.type === 'player') drawPlayer();
-        else if (e.type === 'npc') { drawCharacter(e.obj.x, e.obj.y, e.obj.color, e.obj.dir, 0); ctx.fillStyle = C.white || '#fff'; ctx.font = '10px monospace'; ctx.textAlign = 'center'; ctx.fillText(e.obj.name, e.obj.x * TILE + 16, e.obj.y * TILE - 2); }
+        else if (e.type === 'npc') {
+          const n = e.obj;
+          const nx = n.moving ? lerp(n.fromX, n.x, n.moveT) : n.x;
+          const ny = n.moving ? lerp(n.fromY, n.y, n.moveT) : n.y;
+          drawCharacter(nx, ny, n.color, n.dir, n.moving ? n.animFrame : 0);
+          ctx.fillStyle = C.white || '#fff'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+          ctx.fillText(n.name, nx * TILE + 16, ny * TILE - 2);
+        }
         else if (e.type === 'enemy') drawOneEnemy(e.obj);
       }
       // Redraw tree tiles on top

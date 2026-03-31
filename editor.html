@@ -1028,8 +1028,30 @@ function renderNpcProps() {
     html += '</div>';
   }
 
-  // Patrol
-  html += '<h3>Patrol Path</h3><div class="prop-group">';
+  // Movement / Alive
+  html += '<h3>Movement</h3><div class="prop-group">';
+  html += '<div style="font-size:10px;color:var(--text2);margin-bottom:6px">Make NPCs feel alive by letting them wander or patrol.</div>';
+  html += `<label>Behavior</label><select id="propNpcMovement">`;
+  const movType = npc.patrol && npc.patrol.length ? 'patrol' : npc.wander ? 'wander' : 'static';
+  html += `<option value="static" ${movType==='static'?'selected':''}>Static (stays in place)</option>`;
+  html += `<option value="wander" ${movType==='wander'?'selected':''}>Wander (random nearby)</option>`;
+  html += `<option value="patrol" ${movType==='patrol'?'selected':''}>Patrol (follow waypoints)</option>`;
+  html += '</select>';
+
+  // Wander settings
+  html += `<div id="wanderSettings" style="display:${movType==='wander'?'block':'none'};margin-top:6px">`;
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">';
+  html += `<div><label style="margin:0;font-size:10px">Radius</label><input type="number" id="propWanderRadius" value="${npc.wanderRadius||3}" min="1" max="8"><div style="font-size:8px;color:var(--text2)">tiles from origin</div></div>`;
+  html += `<div><label style="margin:0;font-size:10px">Speed</label><input type="number" id="propNpcSpeed" value="${npc.speed||2}" min="0.5" max="6" step="0.5"><div style="font-size:8px;color:var(--text2)">move speed</div></div>`;
+  html += `<div><label style="margin:0;font-size:10px">Pause</label><input type="number" id="propNpcPause" value="${npc.pauseTime||3}" min="1" max="10" step="0.5"><div style="font-size:8px;color:var(--text2)">sec between moves</div></div>`;
+  html += '</div></div>';
+
+  // Patrol settings
+  html += `<div id="patrolSettings" style="display:${movType==='patrol'?'block':'none'};margin-top:6px">`;
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">';
+  html += `<div><label style="margin:0;font-size:10px">Speed</label><input type="number" id="propPatrolSpeed" value="${npc.speed||2}" min="0.5" max="6" step="0.5"></div>`;
+  html += `<div><label style="margin:0;font-size:10px">Pause</label><input type="number" id="propPatrolPause" value="${npc.pauseTime||3}" min="1" max="10" step="0.5"><div style="font-size:8px;color:var(--text2)">sec at waypoints</div></div>`;
+  html += '</div>';
   const patrol = npc.patrol || [];
   if (patrol.length) {
     html += '<div style="font-size:11px;margin-bottom:4px">';
@@ -1037,6 +1059,8 @@ function renderNpcProps() {
     html += '</div>';
   }
   html += `<div class="inline-btns"><button id="editPatrol" class="primary">Edit Path</button><button id="clearPatrol" class="danger">Clear</button></div>`;
+  html += '</div>';
+
   html += '</div>';
 
   html += `<div style="margin-top:16px"><button class="danger" id="deleteEntity">Delete NPC</button></div>`;
@@ -1249,6 +1273,19 @@ function bindPropsEvents() {
     bindInput('propQuestFlag', v => { if(npc.questGive) npc.questGive.flag = v; });
     bindSelect('propQuestItem', v => { if(npc.questGive) npc.questGive.item = v; });
 
+    // Movement behavior
+    bindSelect('propNpcMovement', v => {
+      if (v === 'static') { delete npc.wander; delete npc.patrol; }
+      else if (v === 'wander') { npc.wander = true; delete npc.patrol; npc.wanderRadius = npc.wanderRadius || 3; npc.speed = npc.speed || 2; npc.pauseTime = npc.pauseTime || 3; }
+      else if (v === 'patrol') { delete npc.wander; npc.patrol = npc.patrol || [[npc.x, npc.y]]; npc.speed = npc.speed || 2; npc.pauseTime = npc.pauseTime || 3; }
+      updateProperties(); render();
+    });
+    bindNumber('propWanderRadius', v => { npc.wanderRadius = v; });
+    bindNumber('propNpcSpeed', v => { npc.speed = v; }, true);
+    bindNumber('propNpcPause', v => { npc.pauseTime = v; }, true);
+    bindNumber('propPatrolSpeed', v => { npc.speed = v; }, true);
+    bindNumber('propPatrolPause', v => { npc.pauseTime = v; }, true);
+
     // Patrol
     const editPatrol = document.getElementById('editPatrol');
     if (editPatrol) editPatrol.addEventListener('click', () => startPatrolEdit(npc));
@@ -1313,9 +1350,9 @@ function bindInput(id, fn) {
   const el = document.getElementById(id);
   if (el) el.addEventListener('input', () => fn(el.value));
 }
-function bindNumber(id, fn) {
+function bindNumber(id, fn, isFloat) {
   const el = document.getElementById(id);
-  if (el) el.addEventListener('input', () => fn(parseInt(el.value)||0));
+  if (el) el.addEventListener('input', () => fn(isFloat ? (parseFloat(el.value)||0) : (parseInt(el.value)||0)));
 }
 function bindSelect(id, fn) {
   const el = document.getElementById(id);
@@ -1797,7 +1834,12 @@ function generateExport() {
       if (npc.dialogue?.length) n.dialogue = npc.dialogue;
       if (npc.trader) { n.trader = true; n.trades = npc.trades || []; }
       if (npc.questGive && npc.questGive.flag) n.questGive = npc.questGive;
+      if (npc.wander) { n.wander = true; n.wanderRadius = npc.wanderRadius || 3; }
       if (npc.patrol?.length) n.patrol = npc.patrol;
+      if (npc.wander || npc.patrol?.length) {
+        if (npc.speed && npc.speed !== 2) n.speed = npc.speed;
+        if (npc.pauseTime && npc.pauseTime !== 3) n.pauseTime = npc.pauseTime;
+      }
       return n;
     });
     // Exits

@@ -329,7 +329,7 @@ NPCs are rendered by the engine as colored sprites. Customize via the config pro
 }
 ```
 
-NPCs are stationary — they stay at their placed position and face the direction set by `dir`. Make them feel alive by placing them in interesting locations with context-rich dialogue.
+NPCs can be static or mobile. Add `wander: true` with `wanderRadius` for random wandering near their origin, or `patrol: [[x1,y1],[x2,y2],...]` for waypoint loops. Control movement with `speed` (1-5) and `pauseTime` (seconds between moves). NPCs stop and face the player during dialogue, then resume movement.
 
 ---
 

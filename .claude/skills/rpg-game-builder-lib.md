@@ -185,6 +185,31 @@ maps: {
 - Quest property MUST be `questGive` — not `quest` or anything else
 - NPCs are solid — they block movement. Never place them on the only path to an exit or door.
 
+#### NPC Movement (Wander & Patrol)
+
+NPCs can walk around to feel alive. Add movement properties to any NPC:
+
+```js
+// Wandering NPC — moves randomly within a radius of their origin
+{ x:6, y:5, name:'Villager', color:'#7eb8da', dir:0,
+  dialogue:['Hello there!'],
+  wander: true, wanderRadius: 3, speed: 2, pauseTime: 2 }
+
+// Patrol NPC — follows a loop of waypoints
+{ x:14, y:3, name:'Guard', color:'#da7e7e', dir:2,
+  dialogue:['Move along, citizen.'],
+  patrol: [[14,3],[14,10],[5,10],[5,3]], speed: 3, pauseTime: 1 }
+```
+
+- `wander: true` — NPC moves randomly, staying within `wanderRadius` tiles of its starting position
+- `wanderRadius` — max tiles from origin the NPC will wander (default 3)
+- `patrol: [[x1,y1],[x2,y2],...]` — NPC walks a loop through these waypoints in order
+- `speed` — movement speed, 1-5 scale (1=very slow, 5=fast). Default 2
+- `pauseTime` — seconds the NPC pauses between moves (default 2)
+- NPCs stop and face the player when talked to, then resume movement after dialogue closes
+- NPCs respect collision — they won't walk through walls, other NPCs, or the player
+- Static NPCs (no `wander` or `patrol`) stay in place as before
+
 ### Door Portals
 
 Teleport the player when they walk onto a tile of type 5 (door).
