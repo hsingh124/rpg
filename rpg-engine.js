@@ -27,7 +27,10 @@ const RPG = {
       MAP_ITEMS[id] = (m.items || []).map(i => ({ ...i }));
       MAP_ENEMIES[id] = (m.enemies || []).map(e => {
         const t = ENEMY_TYPES[e.type];
-        return { ...e, hp: t ? t.hp : 10, maxHp: t ? t.hp : 10, dir: Math.floor(Math.random() * 4), moveTimer: Math.random() * 2, hurtTimer: 0, alive: true };
+        return { ...e, hp: t ? t.hp : 10, maxHp: t ? t.hp : 10, dir: Math.floor(Math.random() * 4), moveTimer: Math.random() * 2, hurtTimer: 0, alive: true,
+          // Super enemy state
+          dashCooldown: 0, dashing: false, dashTimer: 0, dashFromX: 0, dashFromY: 0, dashToX: 0, dashToY: 0,
+          rangedCooldown: Math.random() * 2, };
       });
     }
 
@@ -64,7 +67,7 @@ const RPG = {
     };
 
     const combat = cfg.combat || {};
-    let damageFloats = [], particles = [], projectiles = [], afterimages = [];
+    let damageFloats = [], particles = [], projectiles = [], afterimages = [], enemyProjectiles = [], enemyAfterimages = [];
     let currentMapId = cfg.startMap || Object.keys(MAPS)[0];
     let transitioning = false, transitionAlpha = 0, transitionTarget = null;
     let keys = {}, keyOrder = [];
@@ -481,6 +484,7 @@ const RPG = {
         player.fromX = player.x; player.fromY = player.y;
         player.moving = false; player.moveT = 0;
         dialogueState = null; transitionTarget = null;
+        enemyProjectiles.length = 0; enemyAfterimages.length = 0;
       }
       if (transitionAlpha >= 2) { transitioning = false; transitionAlpha = 0; }
     }
@@ -668,27 +672,100 @@ const RPG = {
     }
 
     // --- Enemy AI ---
+    function enemyDash(e, et, enemies) {
+      const { dx, dy } = getDirDelta(e.dir);
+      const dashDist = et.dashDist || 3;
+      let dist = 0;
+      for (let i = 1; i <= dashDist; i++) {
+        const nx = e.x + dx * i, ny = e.y + dy * i;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) break;
+        if (SOLID.has(currentMap().tiles[ny][nx])) break;
+        if (currentMap().npcs.some(n => n.x === nx && n.y === ny)) break;
+        if (enemies.some(o => o !== e && o.alive && o.x === nx && o.y === ny)) break;
+        dist = i;
+      }
+      if (dist < 2) return false;
+      e.dashing = true; e.dashTimer = 0;
+      e.dashFromX = e.x; e.dashFromY = e.y;
+      e.dashToX = e.x + dx * dist; e.dashToY = e.y + dy * dist;
+      e.dashDuration = 0.12;
+      e.dashCooldown = et.dashCooldown || 1.5;
+      enemyAfterimages.push({ x: e.x, y: e.y, dir: e.dir, color: et.color, timer: 0.25 });
+      // Damage player if on the dash path
+      for (let i = 1; i <= dist; i++) {
+        const cx = e.dashFromX + dx * i, cy = e.dashFromY + dy * i;
+        spawnParticles(cx * TILE + 16, cy * TILE + 16, et.color, 2, 60);
+        if (cx === player.x && cy === player.y && player.iFrames <= 0) {
+          const dmg = Math.max(1, (et.atk || 3) + 2 - Math.floor(player.level * 0.5));
+          player.hp -= dmg; player.hurtTimer = 0.3; player.iFrames = 0.6;
+          damageFloats.push({ x: player.x * TILE + 16, y: player.y * TILE, text: `-${dmg}`, color: '#ff4466', timer: 0.8 });
+          if (player.hp <= 0) { player.hp = player.maxHp; currentMapId = cfg.startMap || Object.keys(MAPS)[0]; player.x = pc.x ?? 9; player.y = pc.y ?? 9; player.fromX = player.x; player.fromY = player.y; player.moving = false; showMessage('You were defeated! Respawned.'); }
+        }
+      }
+      e.x = e.dashToX; e.y = e.dashToY;
+      return true;
+    }
+
+    function enemyShoot(e, et) {
+      const distX = player.x - e.x, distY = player.y - e.y;
+      // Aim at player
+      let dx = 0, dy = 0;
+      if (Math.abs(distX) >= Math.abs(distY)) dx = distX > 0 ? 1 : -1;
+      else dy = distY > 0 ? 1 : -1;
+      // Update facing
+      if (dy === -1) e.dir = 3; else if (dy === 1) e.dir = 0; else if (dx === -1) e.dir = 1; else if (dx === 1) e.dir = 2;
+      const pxStart = e.x * TILE + 16 + dx * 18;
+      const pyStart = e.y * TILE + 16 + dy * 18;
+      const speed = et.rangedSpeed || 350;
+      const color = et.rangedColor || '#ff3366';
+      spawnParticles(pxStart, pyStart, color, 4, 80);
+      enemyProjectiles.push({
+        x: pxStart, y: pyStart,
+        vx: dx * speed, vy: dy * speed,
+        life: 2.0,
+        dmg: et.rangedDmg || Math.max(1, Math.floor((et.atk || 2) * 0.7)),
+        color: color,
+        trail: [],
+      });
+      e.rangedCooldown = et.rangedCooldown || 2.0;
+    }
+
     function enemyAI(dt) {
       const enemies = MAP_ENEMIES[currentMapId] || [];
       for (const e of enemies) {
         if (!e.alive) continue;
         const et = ENEMY_TYPES[e.type];
         if (e.hurtTimer > 0) e.hurtTimer -= dt;
-        e.moveTimer -= dt * et.speed;
-        if (e.moveTimer > 0) continue;
-        e.moveTimer = 1 + Math.random() * 1.5;
+        if (e.dashCooldown > 0) e.dashCooldown -= dt;
+        if (e.rangedCooldown > 0) e.rangedCooldown -= dt;
+
+        // Handle dashing animation
+        if (e.dashing) {
+          e.dashTimer += dt;
+          if (e.dashTimer >= (e.dashDuration || 0.12)) { e.dashing = false; }
+          continue;
+        }
+
         const distX = player.x - e.x, distY = player.y - e.y;
         const dist = Math.abs(distX) + Math.abs(distY);
-        let mx = 0, my = 0;
-        if (dist <= 5 && dist > 0) {
-          if (Math.abs(distX) >= Math.abs(distY)) mx = distX > 0 ? 1 : -1; else my = distY > 0 ? 1 : -1;
-        } else { const r = Math.floor(Math.random() * 4); if (r === 0) my = -1; else if (r === 1) my = 1; else if (r === 2) mx = -1; else mx = 1; }
-        if (my === -1) e.dir = 3; else if (my === 1) e.dir = 0; else if (mx === -1) e.dir = 1; else if (mx === 1) e.dir = 2;
-        const nx = e.x + mx, ny = e.y + my;
-        if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && !SOLID.has(currentMap().tiles[ny][nx])) {
-          const blocked = enemies.some(o => o !== e && o.alive && o.x === nx && o.y === ny) || currentMap().npcs.some(n => n.x === nx && n.y === ny);
-          if (!blocked && !(nx === player.x && ny === player.y)) { e.x = nx; e.y = ny; }
+
+        // Ranged attack: fires independently of movement (checked every frame)
+        if (et.ranged && dist > 1 && dist <= (et.rangedRange || 12) && e.rangedCooldown <= 0) {
+          const isCardinal = distX === 0 || distY === 0;
+          if (isCardinal) {
+            const ddx = distX === 0 ? 0 : (distX > 0 ? 1 : -1);
+            const ddy = distY === 0 ? 0 : (distY > 0 ? 1 : -1);
+            let blocked = false;
+            const steps = Math.max(Math.abs(distX), Math.abs(distY));
+            for (let s = 1; s < steps; s++) {
+              const cx = e.x + ddx * s, cy = e.y + ddy * s;
+              if (SOLID.has(currentMap().tiles[cy]?.[cx])) { blocked = true; break; }
+            }
+            if (!blocked) { enemyShoot(e, et); }
+          }
         }
+
+        // Melee damage (checked every frame)
         if (dist === 1 && player.iFrames <= 0) {
           const dmg = Math.max(1, et.atk - Math.floor(player.level * 0.5));
           player.hp -= dmg; player.hurtTimer = 0.3; player.iFrames = 0.8;
@@ -699,6 +776,36 @@ const RPG = {
             player.fromX = player.x; player.fromY = player.y; player.moving = false;
             showMessage('You were defeated! Respawned.');
           }
+        }
+
+        // Movement gated by moveTimer
+        e.moveTimer -= dt * et.speed;
+        if (e.moveTimer > 0) continue;
+        e.moveTimer = 1 + Math.random() * 1.5;
+
+        const chaseRange = et.chaseDistance !== undefined ? et.chaseDistance : 5;
+        const inChaseRange = chaseRange === 0 ? (dist > 0) : (dist <= chaseRange && dist > 0);
+
+        // Dash attack: when in dash range
+        if (et.canDash && e.dashCooldown <= 0 && dist >= 2 && dist <= (et.dashDist || 3) + 1) {
+          if (Math.abs(distX) >= Math.abs(distY)) {
+            e.dir = distX > 0 ? 2 : 1;
+          } else {
+            e.dir = distY > 0 ? 0 : 3;
+          }
+          if (enemyDash(e, et, enemies)) continue;
+        }
+
+        // Movement: chase or wander
+        let mx = 0, my = 0;
+        if (inChaseRange) {
+          if (Math.abs(distX) >= Math.abs(distY)) mx = distX > 0 ? 1 : -1; else my = distY > 0 ? 1 : -1;
+        } else { const r = Math.floor(Math.random() * 4); if (r === 0) my = -1; else if (r === 1) my = 1; else if (r === 2) mx = -1; else mx = 1; }
+        if (my === -1) e.dir = 3; else if (my === 1) e.dir = 0; else if (mx === -1) e.dir = 1; else if (mx === 1) e.dir = 2;
+        const nx = e.x + mx, ny = e.y + my;
+        if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && !SOLID.has(currentMap().tiles[ny][nx])) {
+          const blocked = enemies.some(o => o !== e && o.alive && o.x === nx && o.y === ny) || currentMap().npcs.some(n => n.x === nx && n.y === ny);
+          if (!blocked && !(nx === player.x && ny === player.y)) { e.x = nx; e.y = ny; }
         }
       }
     }
@@ -752,6 +859,30 @@ const RPG = {
         if (!hit && pr.life <= 0) projectiles.splice(i, 1);
       }
       enemyAI(dt);
+      // Enemy afterimages
+      for (let i = enemyAfterimages.length - 1; i >= 0; i--) { enemyAfterimages[i].timer -= dt; if (enemyAfterimages[i].timer <= 0) enemyAfterimages.splice(i, 1); }
+      // Enemy projectiles (hit player)
+      for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
+        const pr = enemyProjectiles[i];
+        pr.trail.push({ x: pr.x, y: pr.y, life: 0.12 });
+        pr.x += pr.vx * dt; pr.y += pr.vy * dt; pr.life -= dt;
+        for (let t = pr.trail.length - 1; t >= 0; t--) { pr.trail[t].life -= dt; if (pr.trail[t].life <= 0) pr.trail.splice(t, 1); }
+        const tx = Math.floor(pr.x / TILE), ty = Math.floor(pr.y / TILE);
+        if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS || SOLID.has(currentMap().tiles[ty]?.[tx])) { spawnParticles(pr.x, pr.y, pr.color, 6); enemyProjectiles.splice(i, 1); continue; }
+        // Hit player
+        const ppx = (player.moving ? lerp(player.fromX, player.x, player.moveT) : player.x) * TILE + 16;
+        const ppy = (player.moving ? lerp(player.fromY, player.y, player.moveT) : player.y) * TILE + 16;
+        if (Math.abs(pr.x - ppx) < 14 && Math.abs(pr.y - ppy) < 14 && player.iFrames <= 0) {
+          const dmg = Math.max(1, pr.dmg - Math.floor(player.level * 0.5));
+          player.hp -= dmg; player.hurtTimer = 0.3; player.iFrames = 0.6;
+          damageFloats.push({ x: player.x * TILE + 16, y: player.y * TILE, text: `-${dmg}`, color: '#ff4466', timer: 0.8 });
+          spawnParticles(pr.x, pr.y, pr.color, 8, 200);
+          enemyProjectiles.splice(i, 1);
+          if (player.hp <= 0) { player.hp = player.maxHp; currentMapId = cfg.startMap || Object.keys(MAPS)[0]; player.x = pc.x ?? 9; player.y = pc.y ?? 9; player.fromX = player.x; player.fromY = player.y; player.moving = false; showMessage('You were defeated! Respawned.'); }
+          continue;
+        }
+        if (pr.life <= 0) enemyProjectiles.splice(i, 1);
+      }
       if (dialogueState || inventoryOpen || tradeOpen) return;
       if (player.dashing) return;
       if (player.moving) {
@@ -865,20 +996,62 @@ const RPG = {
     function drawOneEnemy(e) {
       if (!e.alive) return;
       const et = ENEMY_TYPES[e.type];
-      const px = e.x * TILE, py = e.y * TILE;
+      // Lerp position for dashing enemies
+      let ex, ey;
+      if (e.dashing) {
+        const t = Math.min(e.dashTimer / (e.dashDuration || 0.12), 1);
+        const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        ex = lerp(e.dashFromX, e.dashToX, eased);
+        ey = lerp(e.dashFromY, e.dashToY, eased);
+      } else { ex = e.x; ey = e.y; }
+      const px = ex * TILE, py = ey * TILE;
       ctx.fillStyle = C.shadow || 'rgba(0,0,0,0.2)';
       ctx.beginPath(); ctx.ellipse(px + 16, py + 30, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
       const hurt = e.hurtTimer > 0;
+      // Draw dash trail for dashing enemies
+      if (e.dashing) {
+        const { dx, dy } = getDirDelta(e.dir);
+        ctx.globalAlpha = 0.3; ctx.strokeStyle = et.color; ctx.lineWidth = 2;
+        const sx = e.dashFromX * TILE + 16, sy = e.dashFromY * TILE + 16;
+        for (let line = -1; line <= 1; line++) {
+          const off = line * 6;
+          ctx.beginPath(); ctx.moveTo(sx + dy * off, sy + dx * off); ctx.lineTo(px + 16 + dy * off, py + 16 + dx * off); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
       drawEnemyFn(ctx, e.type, { ...e, color: et.color }, px, py, TILE, C, hurt);
       if (e.hp < e.maxHp) { ctx.fillStyle = '#333'; ctx.fillRect(px + 4, py - 4, 24, 4); ctx.fillStyle = '#e74c3c'; ctx.fillRect(px + 4, py - 4, 24 * (e.hp / e.maxHp), 4); }
-      ctx.fillStyle = '#ff9999'; ctx.font = '9px monospace'; ctx.textAlign = 'center'; ctx.fillText(et.name, px + 16, py - 6);
+      // Super enemy indicators
+      const indicators = [];
+      if (et.canDash) indicators.push('⚡');
+      if (et.ranged) indicators.push('🏹');
+      if (et.chaseDistance === 0) indicators.push('👁');
+      const label = indicators.length ? indicators.join('') + ' ' + et.name : et.name;
+      ctx.fillStyle = (et.canDash || et.ranged || et.chaseDistance === 0) ? '#ff6666' : '#ff9999';
+      ctx.font = (et.canDash || et.ranged || et.chaseDistance === 0) ? 'bold 9px monospace' : '9px monospace';
+      ctx.textAlign = 'center'; ctx.fillText(label, px + 16, py - 6);
     }
 
     function drawProjectiles() {
+      // Player projectiles
       for (const pr of projectiles) {
         for (const t of pr.trail) { ctx.globalAlpha = t.life / 0.15 * 0.4; ctx.fillStyle = '#55ddff'; ctx.beginPath(); ctx.arc(t.x, t.y, 3, 0, Math.PI * 2); ctx.fill(); }
         ctx.globalAlpha = 1; ctx.fillStyle = '#aaeeff'; ctx.beginPath(); ctx.arc(pr.x, pr.y, 5, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 0.4; ctx.fillStyle = '#55ddff'; ctx.beginPath(); ctx.arc(pr.x, pr.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+      }
+      // Enemy afterimages
+      for (const ai of enemyAfterimages) {
+        ctx.globalAlpha = ai.timer / 0.25 * 0.35;
+        ctx.fillStyle = ai.color || '#aa3333';
+        ctx.fillRect(ai.x * TILE + 8, ai.y * TILE + 4, 16, 24);
+        ctx.globalAlpha = 1;
+      }
+      // Enemy projectiles
+      for (const pr of enemyProjectiles) {
+        for (const t of pr.trail) { ctx.globalAlpha = t.life / 0.12 * 0.5; ctx.fillStyle = pr.color; ctx.beginPath(); ctx.arc(t.x, t.y, 3, 0, Math.PI * 2); ctx.fill(); }
+        ctx.globalAlpha = 1; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(pr.x, pr.y, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = pr.color; ctx.beginPath(); ctx.arc(pr.x, pr.y, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.3; ctx.fillStyle = pr.color; ctx.beginPath(); ctx.arc(pr.x, pr.y, 12, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
       }
     }
 
@@ -1039,7 +1212,11 @@ const RPG = {
       // Y-sorted entities
       const entities = [];
       map.npcs.forEach(n => entities.push({ type: 'npc', y: n.y, obj: n }));
-      (MAP_ENEMIES[currentMapId] || []).forEach(e => { if (e.alive) entities.push({ type: 'enemy', y: e.y, obj: e }); });
+      (MAP_ENEMIES[currentMapId] || []).forEach(e => { if (e.alive) {
+        let ey = e.y;
+        if (e.dashing) { const t = Math.min(e.dashTimer / (e.dashDuration || 0.12), 1); ey = lerp(e.dashFromY, e.dashToY, t); }
+        entities.push({ type: 'enemy', y: ey, obj: e });
+      }});
       const py = player.moving ? lerp(player.fromY, player.y, player.moveT) : player.y;
       entities.push({ type: 'player', y: py });
       entities.sort((a, b) => a.y - b.y);

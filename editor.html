@@ -1080,6 +1080,20 @@ function renderEnemyProps() {
     html += `Drops: <strong>${(def.drops||[]).join(', ')||'none'}</strong>`;
     html += '</div>';
 
+    // Super ability badges
+    const abilities = [];
+    if (def.canDash) abilities.push('⚡ Dash');
+    if (def.ranged) abilities.push('🏹 Ranged');
+    if (def.chaseDistance === 0) abilities.push('👁 Infinite Chase');
+    else if (def.chaseDistance && def.chaseDistance > 5) abilities.push('👁 Extended Chase');
+    if (abilities.length) {
+      html += `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">`;
+      for (const a of abilities) {
+        html += `<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(255,60,60,.15);color:#ff6666;border:1px solid rgba(255,60,60,.2)">${a}</span>`;
+      }
+      html += '</div>';
+    }
+
     // Quick difficulty adjustment
     html += '<label>Quick Adjust</label>';
     html += '<div style="display:flex;gap:4px;flex-wrap:wrap">';
@@ -1521,6 +1535,26 @@ function showEnemyDefs() {
     html += `<div><label style="margin:0">Difficulty preset</label><select class="ePreset" style="width:100%"><option value="">-- apply preset --</option>${Object.entries(DIFFICULTY_PRESETS).map(([k,p])=>`<option value="${k}">${p.label} — ${p.desc}</option>`).join('')}</select></div>`;
     html += '</div>';
 
+    // Super enemy abilities
+    html += '<div style="margin-top:8px;padding:8px;background:rgba(255,50,50,.08);border:1px solid rgba(255,50,50,.15);border-radius:4px">';
+    html += '<div style="font-size:10px;font-weight:700;color:#ff6666;margin-bottom:6px">⚡ Super Enemy Abilities</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">';
+    html += `<label style="margin:0;font-size:10px"><input type="checkbox" class="eCanDash" ${en.canDash?'checked':''}> Can Dash</label>`;
+    html += `<label style="margin:0;font-size:10px"><input type="checkbox" class="eRanged" ${en.ranged?'checked':''}> Ranged Attack</label>`;
+    html += `<label style="margin:0;font-size:10px"><input type="checkbox" class="eInfChase" ${en.chaseDistance===0?'checked':''}> Infinite Chase</label>`;
+    html += '</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px">';
+    html += `<div><label style="margin:0;font-size:9px">Dash Dist</label><input type="number" class="eDashDist" value="${en.dashDist||3}" min="2" max="6" style="width:100%"></div>`;
+    html += `<div><label style="margin:0;font-size:9px">Dash CD</label><input type="number" class="eDashCD" value="${en.dashCooldown||1.5}" min="0.3" max="5" step="0.1" style="width:100%"><div style="font-size:8px;color:var(--text2)">seconds</div></div>`;
+    html += `<div><label style="margin:0;font-size:9px">Ranged CD</label><input type="number" class="eRangedCD" value="${en.rangedCooldown||2}" min="0.3" max="5" step="0.1" style="width:100%"><div style="font-size:8px;color:var(--text2)">seconds</div></div>`;
+    html += `<div><label style="margin:0;font-size:9px">Ranged DMG</label><input type="number" class="eRangedDmg" value="${en.rangedDmg||Math.max(1,Math.floor((en.atk||2)*0.7))}" min="1" max="20" style="width:100%"></div>`;
+    html += '</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px">';
+    html += `<div><label style="margin:0;font-size:9px">Projectile Color</label><input type="color" class="eRangedColor" value="${en.rangedColor||'#ff3366'}" style="width:100%;height:22px;padding:0;border:none"></div>`;
+    html += `<div><label style="margin:0;font-size:9px">Chase Range</label><input type="number" class="eChaseRange" value="${en.chaseDistance!==undefined?en.chaseDistance:5}" min="0" max="30" style="width:100%"><div style="font-size:8px;color:var(--text2)">0=infinite</div></div>`;
+    html += '</div>';
+    html += '</div>';
+
     // Computed stats bar
     html += `<div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--text2)">`;
     html += `<span>DPS: <strong style="color:var(--text)">${dps}</strong></span>`;
@@ -1587,7 +1621,7 @@ function showEnemyDefs() {
     document.querySelectorAll('.enemy-card[data-enemy]').forEach(card => {
       const sel = card.querySelector('.eId');
       const newId = sel.value.trim() || card.dataset.enemy;
-      newTypes[newId] = {
+      const etObj = {
         name: card.querySelector('.eName').value,
         color: card.querySelector('.eColor').value,
         hp: parseInt(card.querySelector('.eHP').value) || 10,
@@ -1596,6 +1630,26 @@ function showEnemyDefs() {
         speed: parseFloat(card.querySelector('.eSpd').value) || 0.8,
         drops: card.querySelector('.eDrops').value.split(',').map(s=>s.trim()).filter(Boolean),
       };
+      // Super enemy abilities
+      const canDash = card.querySelector('.eCanDash')?.checked;
+      const ranged = card.querySelector('.eRanged')?.checked;
+      const infChase = card.querySelector('.eInfChase')?.checked;
+      const chaseRange = parseInt(card.querySelector('.eChaseRange')?.value);
+      if (canDash) {
+        etObj.canDash = true;
+        etObj.dashDist = parseInt(card.querySelector('.eDashDist')?.value) || 3;
+        etObj.dashCooldown = parseFloat(card.querySelector('.eDashCD')?.value) || 1.5;
+      }
+      if (ranged) {
+        etObj.ranged = true;
+        etObj.rangedCooldown = parseFloat(card.querySelector('.eRangedCD')?.value) || 2;
+        etObj.rangedDmg = parseInt(card.querySelector('.eRangedDmg')?.value) || Math.max(1, Math.floor(etObj.atk * 0.7));
+        etObj.rangedColor = card.querySelector('.eRangedColor')?.value || '#ff3366';
+      }
+      if (infChase || (chaseRange !== undefined && chaseRange !== 5)) {
+        etObj.chaseDistance = infChase ? 0 : (chaseRange || 5);
+      }
+      newTypes[newId] = etObj;
     });
     project.enemyTypes = newTypes;
     closeModal();
@@ -1727,7 +1781,11 @@ function generateExport() {
 
   cfg.enemyTypes = {};
   for (const [id, en] of Object.entries(project.enemyTypes)) {
-    cfg.enemyTypes[id] = { name:en.name, color:en.color, hp:en.hp, atk:en.atk, xp:en.xp, speed:en.speed, drops:en.drops||[] };
+    const etDef = { name:en.name, color:en.color, hp:en.hp, atk:en.atk, xp:en.xp, speed:en.speed, drops:en.drops||[] };
+    if (en.canDash) { etDef.canDash = true; etDef.dashDist = en.dashDist || 3; etDef.dashCooldown = en.dashCooldown || 1.5; }
+    if (en.ranged) { etDef.ranged = true; etDef.rangedCooldown = en.rangedCooldown || 2; etDef.rangedDmg = en.rangedDmg || Math.max(1, Math.floor(en.atk * 0.7)); etDef.rangedColor = en.rangedColor || '#ff3366'; }
+    if (en.chaseDistance !== undefined) etDef.chaseDistance = en.chaseDistance;
+    cfg.enemyTypes[id] = etDef;
   }
 
   cfg.maps = {};

@@ -377,8 +377,8 @@ RPG.create({
 ## Design Tips
 
 - **Bosses**: HP 30-60, ATK 5-8, speed 0.3-0.5. Give them dramatic animations (fire breath, ground pound, wing flap). Use larger visual elements that fill the full 32×32 tile.
+- **Super enemies**: Use `canDash`, `ranged`, and `chaseDistance: 0` on enemy types for aggressive behavior. Super enemies dash toward the player, fire projectiles from afar, and chase from any distance. Combine all three for terrifying boss encounters.
 - **Traders**: Give them warm/inviting colors (#daa520 gold, #da7e7e rose). Place them in safe zones (villages/camps).
 - **Quest NPCs**: Use dialogue to tell the story. The `questGive.flag` can unlock `doorPortals` with `unlockFlag`.
 - **Collectables**: Use `icon:'gem'` or `icon:'crystal'` with varied colors for distinct visual identity. Boss drops should use `icon:'bone'` or `icon:'fossil'`.
-- **Patrol paths**: Keep waypoints 2-4 tiles apart. Square or rectangular patrol routes look natural for guards.
 - **Custom tiles**: Always add to `solidTiles` if they block movement. Add to `treeTiles` if they should render on top of entities (archways, tall crystals).

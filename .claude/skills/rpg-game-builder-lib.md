@@ -94,6 +94,47 @@ enemyTypes: {
 - `speed` — movement frequency (higher = faster, 0.5–1.5 typical range)
 - `drops` — array of item IDs. Random drop on death. Can be empty `[]`
 
+#### Super Enemy Abilities
+
+Add these optional properties to any enemy type to create powerful, aggressive enemies:
+
+```js
+enemyTypes: {
+  // Dasher — lunges at the player
+  assassin: {
+    name:'Shadow Assassin', color:'#8833aa', hp:25, atk:5, xp:40, speed:1.5, drops:['herb'],
+    canDash: true,        // enables dash attack (like player's E key)
+    dashDist: 3,          // max tiles per dash (2-6, default 3)
+    dashCooldown: 1.0,    // seconds between dashes (default 1.5)
+    chaseDistance: 0,      // 0 = infinite chase (default 5)
+  },
+  // Ranged attacker — shoots projectiles at the player
+  archer: {
+    name:'Bone Archer', color:'#e0d8c8', hp:15, atk:4, xp:20, speed:0.6, drops:['herb'],
+    ranged: true,         // enables ranged projectile attacks
+    rangedCooldown: 1.2,  // seconds between shots (default 2)
+    rangedDmg: 4,         // projectile damage (default: 70% of atk)
+    rangedColor: '#ccff33', // projectile color
+    chaseDistance: 0,
+  },
+  // Ultimate super enemy — dashes AND shoots AND chases forever
+  boss: {
+    name:'Demon Lord', color:'#aa2222', hp:50, atk:6, xp:100, speed:2.0, drops:['gem'],
+    canDash: true, dashDist: 4, dashCooldown: 0.8,
+    ranged: true, rangedCooldown: 1.5, rangedDmg: 5, rangedColor: '#ff3366',
+    chaseDistance: 0,
+  },
+}
+```
+
+- `canDash` — enemy dashes toward the player, dealing bonus damage along the path
+- `ranged` — enemy fires projectiles when on the same row/column with line of sight
+- `chaseDistance` — how far the enemy detects the player (default 5 tiles, `0` = infinite)
+- Ranged attacks fire independently of movement speed — even slow enemies shoot quickly
+- Dashes trigger when the enemy is within `dashDist + 1` tiles and cooldown is ready
+- All abilities stack — a single enemy can dash, shoot, AND chase from any distance
+- Super enemies show ability indicators above their name: ⚡ (dash), 🏹 (ranged), 👁 (infinite chase)
+
 ### Maps
 
 Every map: **exactly 15 rows, exactly 20 columns**.
@@ -335,6 +376,22 @@ The exit door tile (5) REPLACES one wall tile — it does NOT go on top of or be
 | Hard (dungeon) | 18-25 | 4-6 | 30-40 | herbs, rare items |
 
 Player starts with 18-25 HP and 2-3 ATK. By the final area they should be level 2-3 with ~30 HP and 4-6 ATK (with weapon).
+
+### Super Enemy Usage Guide
+
+| Role | Abilities | Stats | When to Use |
+|------|-----------|-------|-------------|
+| Fodder dasher | `canDash` only | HP 10-15, speed 1.2 | Mid-game surprise enemies |
+| Sniper | `ranged` only | HP 8-12, speed 0.5 | Place behind obstacles for tactical challenge |
+| Hunter | `chaseDistance: 0` only | HP 12-18, speed 1.0 | Relentless pursuers in open areas |
+| Elite | `canDash` + `chaseDistance: 0` | HP 20-30, speed 1.5 | Late-game threats |
+| Mini-boss | All three abilities | HP 30-50, speed 1.5-2.0 | One per dungeon, guard objectives |
+| Final boss | All three + high stats | HP 50-80, atk 6-8 | End of game, dramatic encounter |
+
+- Use 1-2 super enemies per area max — they're intense
+- Pair ranged enemies with walls for cover-based gameplay
+- Dashers are scariest in open arenas with nowhere to hide
+- Give the player enough herbs and HP to survive the onslaught
 
 ---
 
