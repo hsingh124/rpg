@@ -11,7 +11,7 @@ const RPG = {
     canvas.height = ROWS * TILE;
     document.title = cfg.title || 'RPG';
 
-    const C = cfg.colors;
+    const C = cfg.colors || {};
     const SOLID = new Set(cfg.solidTiles || []);
     const TREE_TILES = new Set(cfg.treeTiles || [4]);
     const ITEMS = cfg.items || {};

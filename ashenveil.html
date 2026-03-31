@@ -15,7 +15,7 @@
 <script src="rpg-engine.js"></script>
 <script>
 
-RPG.create({
+const gameConfig = {
   title: 'Village of Ashenveil',
 
   colors: {
@@ -36,7 +36,7 @@ RPG.create({
     mpFill: '#3498db', xpFill: '#f1c40f', white: '#fff',
   },
 
-  solidTiles: [1, 2, 4, 6],
+  solidTiles: [1, 2, 4, 6, 25],
   treeTiles: [4],
 
   player: { name: 'Stranger', x: 9, y: 7, hp: 30, mp: 10, atk: 3 },
@@ -52,6 +52,15 @@ RPG.create({
   },
 
   enemyTypes: {},
+
+  doorPortals: {
+    ashenveil: [
+      { x: 0, y: 7, map: 'noble_quarter', spawnX: 18, spawnY: 7, locked: false },
+    ],
+    noble_quarter: [
+      { x: 19, y: 7, map: 'ashenveil', spawnX: 1, spawnY: 7, locked: false },
+    ],
+  },
 
   // Custom tile renderer — varies roof colours per house, adds flowers, cobblestone road
   drawTile(ctx, type, x, y, px, py, T, C) {
@@ -130,6 +139,17 @@ RPG.create({
         ctx.strokeRect(px+8, py+16, 14, 14);
         break;
       }
+      case 25: { // marble fountain stone (fancy elite district)
+        ctx.fillStyle = '#d4c5b0'; ctx.fillRect(px, py, T, T);
+        ctx.fillStyle = '#e8dcc8';
+        ctx.beginPath(); ctx.arc(px+16, py+16, 12, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#4a9fd8';
+        ctx.beginPath(); ctx.arc(px+16, py+16, 8, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#7db8e8';
+        ctx.beginPath(); ctx.arc(px+16, py+10, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(px+10, py+18, 2.5, 0, Math.PI*2); ctx.fill();
+        break;
+      }
       default: { // fallback: grass
         ctx.fillStyle = (x+y)%2 ? (C.grass||'#5a8a45') : (C.grass2||'#4d7a3b');
         ctx.fillRect(px, py, T, T);
@@ -167,8 +187,8 @@ RPG.create({
         [4,0,1,5,5,1,0,0,1,5,5,1,0,0,1,5,5,1,0,4],
         // Row 6: Spur paths + flower patches + open grass
         [4,18,0,3,3,0,0,18,0,3,3,0,18,0,0,3,3,0,18,4],
-        // Row 7: MAIN COBBLESTONE ROAD (full width)
-        [21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21],
+        // Row 7: MAIN COBBLESTONE ROAD (west side is door to noble quarter)
+        [5,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,21],
         // Row 8: Open grass + passage roads at cols 6 and 12
         [4,18,0,0,0,0,3,0,18,0,0,18,3,0,0,0,0,0,18,4],
         // Row 9: House back-walls (SW Store, SC Apothecary, SE Shrine)
@@ -350,8 +370,135 @@ RPG.create({
       exits: {},
       exitTiles: {},
     },
+
+    noble_quarter: {
+      name: 'The Noble Quarter',
+      tiles: [
+        // Row 0: Northern tree border
+        [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+        // Row 1: NW/NE fancy houses (visible in distance)
+        [4,18,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,18,4],
+        // Row 2: Roofs
+        [4,0,6,6,6,6,0,0,0,0,0,0,0,0,6,6,6,6,0,4],
+        // Row 3: Roofs
+        [4,0,6,6,6,6,0,18,0,0,0,18,0,0,6,6,6,6,0,4],
+        // Row 4: Doors + roundabout (visible in distance)
+        [4,0,1,5,5,1,21,21,21,21,21,21,21,21,1,5,5,1,0,4],
+        // Row 5: TREES block north side (player can't go around)
+        [4,4,4,4,4,4,4,4,25,25,25,25,4,4,4,4,4,4,4,4],
+        // Row 6: TREES block north side
+        [4,4,4,4,4,4,4,4,25,25,25,25,4,4,4,4,4,4,4,4],
+        // Row 7: MAIN ROAD PATH - Guard blocks westward movement
+        [21,21,21,21,21,21,21,21,25,25,25,25,21,21,21,17,5,4,4,4],
+        // Row 8: TREES block south side
+        [4,4,4,4,4,4,4,4,25,25,25,25,4,4,4,4,4,4,4,4],
+        // Row 9: TREES block south side
+        [4,4,4,4,4,4,4,4,25,25,25,25,4,4,4,4,4,4,4,4],
+        // Row 10: Doors + roundabout (visible in distance)
+        [4,0,1,5,5,1,21,21,21,21,21,21,21,21,1,5,5,1,0,4],
+        // Row 11: Roofs
+        [4,0,6,6,6,6,0,18,0,0,0,18,0,0,6,6,6,6,0,4],
+        // Row 12: Roofs
+        [4,0,6,6,6,6,0,0,0,0,0,0,0,0,6,6,6,6,0,4],
+        // Row 13: SW/SE fancy houses
+        [4,18,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,18,4],
+        // Row 14: Southern tree border
+        [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+      ],
+
+      npcs: [
+        // Guard blocking entrance to the exclusive quarter
+        {
+          x: 15, y: 7, name: 'Guard Captain', color: '#5a6a8a', dir: 1,
+          dialogue: [
+            "The Noble Quarter is restricted to high society only.",
+            "You lack the credentials to enter these exclusive grounds.",
+            "Move along, commoner.",
+          ],
+        },
+
+        // Lord Vayne (walks along the main road toward fountain)
+        { x: 12, y: 7, name: 'Lord Vayne', color: '#d4af37', dir: 2, patrol: [[12,7],[10,7],[9,7],[10,7]], patrolIdx: 0, moveProgress: 0 },
+        // Lady Seraphine (strolls near fountain)
+        { x: 10, y: 7, name: 'Lady Seraphine', color: '#e8b4d8', dir: 0, patrol: [[10,7],[8,7],[10,7]], patrolIdx: 0, moveProgress: 0 },
+        // Lord Cassius (paces by fountain center)
+        { x: 9, y: 7, name: 'Lord Cassius', color: '#8a9aca', dir: 2, patrol: [[9,7],[11,7],[9,7]], patrolIdx: 0, moveProgress: 0 },
+        // Lady Aurelia (walks the roundabout)
+        { x: 7, y: 7, name: 'Lady Aurelia', color: '#d4a878', dir: 2, patrol: [[7,7],[6,7],[8,7],[7,7]], patrolIdx: 0, moveProgress: 0 },
+      ],
+
+      items: [
+        { x: 9, y: 7, item: 'coin' },
+      ],
+      enemies: [],
+      exits: {},
+      exitTiles: {},
+    },
   },
-});
+};
+
+// Initialize the game
+RPG.create(gameConfig);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NPC ANIMATION SYSTEM — Makes NPCs walk around smoothly on patrol paths
+// ─────────────────────────────────────────────────────────────────────────────
+
+let lastAnimTime = performance.now();
+function animateNpcs(currentTime) {
+  const dt = (currentTime - lastAnimTime) / 1000;
+  lastAnimTime = currentTime;
+
+  // Get the current map via RPG_DEBUG (engine's debug API)
+  const debugInfo = window.RPG_DEBUG?.getPlayer();
+  if (!debugInfo) { requestAnimationFrame(animateNpcs); return; }
+
+  const currentMapId = debugInfo.map;
+  const mapConfig = gameConfig.maps[currentMapId];
+  if (!mapConfig || !mapConfig.npcs) { requestAnimationFrame(animateNpcs); return; }
+
+  // Update each NPC that has a patrol path
+  for (const npc of mapConfig.npcs) {
+    if (!npc.patrol || npc.patrol.length === 0) continue;
+    if (npc.moveProgress === undefined) npc.moveProgress = 0;
+    if (npc.patrolIdx === undefined) npc.patrolIdx = 0;
+
+    const target = npc.patrol[npc.patrolIdx];
+    const dx = target[0] - npc.x;
+    const dy = target[1] - npc.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance < 0.15) {
+      // Reached waypoint, advance to next
+      npc.patrolIdx = (npc.patrolIdx + 1) % npc.patrol.length;
+      npc.moveProgress = 0;
+    } else {
+      // Move toward target (0.6 seconds per tile for smooth walking)
+      npc.moveProgress = Math.min(1, npc.moveProgress + dt / 1.8);
+
+      // Get previous waypoint for smooth interpolation
+      const prevIdx = (npc.patrolIdx - 1 + npc.patrol.length) % npc.patrol.length;
+      const prevWaypoint = npc.patrol[prevIdx];
+      const startX = prevWaypoint ? prevWaypoint[0] : npc.x;
+      const startY = prevWaypoint ? prevWaypoint[1] : npc.y;
+
+      // Interpolate position (smooth movement between tiles)
+      npc.x = startX + (target[0] - startX) * npc.moveProgress;
+      npc.y = startY + (target[1] - startY) * npc.moveProgress;
+
+      // Update direction based on movement direction
+      if (Math.abs(dx) > Math.abs(dy)) {
+        npc.dir = dx > 0 ? 2 : 1; // 2=east, 1=west
+      } else {
+        npc.dir = dy > 0 ? 0 : 3; // 0=south, 3=north
+      }
+    }
+  }
+
+  requestAnimationFrame(animateNpcs);
+}
+
+requestAnimationFrame(animateNpcs);
 
 </script>
 </body>

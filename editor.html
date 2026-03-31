@@ -174,11 +174,13 @@ h4 { font-size: 12px; color: var(--text2); margin: 10px 0 4px; }
   <button id="btnPlayer" class="primary">Player</button>
   <button id="btnItemDefs" class="primary">Items</button>
   <button id="btnEnemyDefs" class="primary">Enemies</button>
+  <button id="btnColors" class="primary">Colors</button>
   <button id="btnWinCond" class="primary">Win</button>
   <div class="sep"></div>
   <button id="btnSave">Save</button>
   <button id="btnLoad">Load</button>
-  <button id="btnExport" class="primary" style="font-weight:700">▶ Export</button>
+  <button id="btnExport" class="primary">Export</button>
+  <button id="btnPlay" class="success" style="font-weight:700">▶ Play</button>
 </div>
 
 <!-- ═══ WORKSPACE ═══ -->
@@ -276,6 +278,19 @@ function createDefaultProject() {
     startMap: 'village',
     player: { name:'Hero', x:9, y:9, hp:20, mp:10, atk:2 },
     combat: { dash:true, gun:false },
+    colors: {
+      grass:'#4a7a3b', grass2:'#3d6b31', path:'#c4a55a', water:'#3b6d9e',
+      wall:'#7a6652', roof:'#8b3a3a', door:'#5a3a1a', tree:'#2d5a1e', trunk:'#6b4226',
+      sand:'#d4b96a', sand2:'#c8a85a', lava:'#cc4400',
+      snow:'#e8e8f0', snow2:'#d8d8e8', ice:'#a0c8e8', pine:'#1a5028',
+      caveFloor:'#3a3530', caveFloor2:'#342f2a', caveWall:'#2a2520',
+      dungeonFloor:'#4a4540', dungeonFloor2:'#3e3a35', dungeonWall:'#3a3545',
+      darkGrass:'#2a5a22', darkGrass2:'#224a1a',
+      cobble:'#8a8078', carpet:'#8b3050', carpetBorder:'#c4a55a',
+      wood:'#6b4226', fence:'#b89a6a', bridge:'#8b6914',
+      player:'#e8c170', shadow:'rgba(0,0,0,0.2)', uiBorder:'#e8c170',
+      hpFill:'#e74c3c', hpBg:'#555', mpFill:'#3498db', xpFill:'#f1c40f', white:'#fff',
+    },
     winCondition: { type:'item', item:'', flag:'', title:'Victory!', message:'You won the game!' },
     items: {
       herb: { name:'Herb', color:'#5cb85c', icon:'herb', desc:'Heals 5 HP.', heal:5 },
@@ -362,113 +377,21 @@ function drawTiles() {
   }
 }
 
-function drawSingleTile(ctx, type, x, y, px, py) {
-  const info = TILE_INFO[type] || TILE_INFO[0];
-  // Base color
-  if (info.color2 && (x+y)%2) {
-    ctx.fillStyle = info.color2;
-  } else {
-    ctx.fillStyle = info.color;
-  }
-  ctx.fillRect(px, py, TILE, TILE);
-
-  switch(type) {
-    case 1: // wall bricks
-      ctx.strokeStyle = 'rgba(0,0,0,.15)'; ctx.lineWidth = 1;
-      ctx.strokeRect(px+1, py+1, 14, 14); ctx.strokeRect(px+16, py+16, 14, 14);
-      ctx.fillStyle = 'rgba(0,0,0,.1)'; ctx.fillRect(px, py+28, TILE, 4);
-      break;
-    case 2: // water shimmer
-      ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(px+4, py+10, 12, 3);
-      ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(px+16, py+20, 10, 2);
-      break;
-    case 3: // path specks
-      ctx.fillStyle = 'rgba(0,0,0,.06)';
-      if ((x+y*3)%5===0) ctx.fillRect(px+6,py+10,4,3);
-      break;
-    case 4: // tree
-      ctx.fillStyle = (x+y)%2 ? '#4a7a3b' : '#3d6b31'; ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = '#6b4226'; ctx.fillRect(px+13, py+20, 6, 12);
-      ctx.fillStyle = '#2d5a1e';
-      ctx.beginPath(); ctx.arc(px+16, py+14, 12, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = 'rgba(0,50,0,.25)';
-      ctx.beginPath(); ctx.arc(px+13, py+12, 6, 0, Math.PI*2); ctx.fill();
-      break;
-    case 5: // door
-      ctx.fillStyle = '#c4a55a'; ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = '#5a3a1a'; ctx.fillRect(px+6, py+4, 20, 24);
-      ctx.fillStyle = '#e8c170'; ctx.fillRect(px+20, py+14, 3, 3);
-      break;
-    case 6: // roof lines
-      ctx.fillStyle = 'rgba(0,0,0,.08)';
-      for (let i = 4; i < TILE; i += 8) ctx.fillRect(px, py+i, TILE, 1);
-      break;
-    case 9: // lava glow
-      ctx.fillStyle = 'rgba(255,200,0,.3)'; ctx.fillRect(px+4, py+6, 14, 6);
-      ctx.fillStyle = 'rgba(255,100,0,.2)'; ctx.fillRect(px+14, py+18, 12, 5);
-      break;
-    case 11: // cave wall shadow
-      ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(px, py+26, TILE, 6);
-      break;
-    case 12: // stalagmite spike
-      ctx.fillStyle = '#2a2520';
-      ctx.beginPath(); ctx.moveTo(px+10, py+TILE); ctx.lineTo(px+16, py+6); ctx.lineTo(px+22, py+TILE); ctx.fill();
-      break;
-    case 13: // dungeon wall
-      ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(px, py+27, TILE, 5);
-      ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 1; ctx.strokeRect(px+2, py+2, 28, 12);
-      break;
-    case 14: // bones
-      ctx.fillStyle = '#c8c0b0';
-      ctx.beginPath(); ctx.arc(px+14, py+12, 4, 0, Math.PI*2); ctx.fill();
-      ctx.fillRect(px+8, py+16, 14, 2); ctx.fillRect(px+12, py+12, 2, 10);
-      break;
-    case 17: // pine
-      ctx.fillStyle = (x+y)%2 ? '#4a7a3b' : '#3d6b31'; ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = '#6b4226'; ctx.fillRect(px+14, py+22, 4, 10);
-      ctx.fillStyle = '#1a5028';
-      ctx.beginPath(); ctx.moveTo(px+16, py+4); ctx.lineTo(px+26, py+16); ctx.lineTo(px+6, py+16); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(px+16, py+10); ctx.lineTo(px+28, py+24); ctx.lineTo(px+4, py+24); ctx.fill();
-      break;
-    case 18: // flowers
-      ctx.fillStyle = (x+y)%2 ? '#4a7a3b' : '#3d6b31'; ctx.fillRect(px, py, TILE, TILE);
-      const fc = ['#e55','#e8e','#ee5','#5be'];
-      for (let i = 0; i < 3; i++) {
-        ctx.fillStyle = fc[(x+y+i)%fc.length];
-        ctx.beginPath(); ctx.arc(px+8+i*8, py+10+(i*7)%14, 3, 0, Math.PI*2); ctx.fill();
-      }
-      break;
-    case 19: // bridge
-      ctx.fillStyle = '#3b6d9e'; ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = '#8b6914'; ctx.fillRect(px, py+4, TILE, 24);
-      ctx.fillStyle = 'rgba(0,0,0,.1)'; ctx.fillRect(px, py+12, TILE, 2); ctx.fillRect(px, py+20, TILE, 2);
-      break;
-    case 21: // cobble
-      ctx.strokeStyle = 'rgba(0,0,0,.1)'; ctx.lineWidth = 1;
-      ctx.strokeRect(px+1, py+1, 14, 14); ctx.strokeRect(px+16, py+1, 14, 14);
-      ctx.strokeRect(px+8, py+16, 14, 14);
-      break;
-    case 22: // carpet
-      ctx.strokeStyle = '#c4a55a'; ctx.lineWidth = 1; ctx.strokeRect(px+3, py+3, 26, 26);
-      break;
-    case 23: // bookshelf
-      const bc = ['#8b3030','#3050a0','#2a7030','#8b6014'];
-      for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
-        ctx.fillStyle = bc[(x+y+r+c)%bc.length];
-        ctx.fillRect(px+2+c*7, py+2+r*10, 6, 8);
-      }
-      break;
-    case 24: // fence
-      ctx.fillStyle = (x+y)%2 ? '#4a7a3b' : '#3d6b31'; ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = '#b89a6a';
-      ctx.fillRect(px, py+10, TILE, 3); ctx.fillRect(px, py+20, TILE, 3);
-      ctx.fillRect(px+4, py+6, 3, 20); ctx.fillRect(px+25, py+6, 3, 20);
-      break;
-  }
-}
-
 function drawEntities() {
   const map = curMap();
+
+  // Exit tile indicators
+  for (const dir of ['north','south','east','west']) {
+    const exitTiles = map.exitTiles[dir] || [];
+    if (!exitTiles.length) continue;
+    ctx.fillStyle = 'rgba(39,174,96,.35)';
+    for (const idx of exitTiles) {
+      if (dir === 'north') ctx.fillRect(idx*TILE, 0, TILE, TILE);
+      else if (dir === 'south') ctx.fillRect(idx*TILE, (ROWS-1)*TILE, TILE, TILE);
+      else if (dir === 'west') ctx.fillRect(0, idx*TILE, TILE, TILE);
+      else if (dir === 'east') ctx.fillRect((COLS-1)*TILE, idx*TILE, TILE, TILE);
+    }
+  }
 
   // Door portal indicators
   const portals = project.doorPortals[ed.currentMap] || [];
@@ -480,48 +403,59 @@ function drawEntities() {
     ctx.strokeRect(px+2, py+2, TILE-4, TILE-4);
     ctx.setLineDash([]);
     if (ed.selType === 'doorPortal' && ed.selIndex === i) {
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
       ctx.strokeRect(px, py, TILE, TILE);
     }
   });
 
   // Items on map
   map.items.forEach((it, i) => {
-    const px = it.x * TILE + 8, py = it.y * TILE + 8;
+    const px = it.x * TILE, py = it.y * TILE;
     const def = project.items[it.item];
-    ctx.fillStyle = def ? def.color : '#aaa';
-    ctx.shadowColor = def ? def.color : '#aaa';
-    ctx.shadowBlur = 6;
-    ctx.beginPath(); ctx.arc(px+8, py+8, 6, 0, Math.PI*2); ctx.fill();
+    const col = def ? def.color : '#aaa';
+    // glow
+    ctx.shadowColor = col; ctx.shadowBlur = 8;
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(px+16, py+16, 7, 0, Math.PI*2); ctx.fill();
     ctx.shadowBlur = 0;
+    // icon letter
     ctx.fillStyle = '#fff';
-    ctx.font = '8px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(it.item.slice(0,3), px+8, py+12);
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText((it.item || '?').slice(0,3).toUpperCase(), px+16, py+17);
+    // selection border
     if (ed.selType === 'item' && ed.selIndex === i) {
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-      ctx.strokeRect(it.x*TILE+2, it.y*TILE+2, TILE-4, TILE-4);
+      ctx.strokeRect(px+2, py+2, TILE-4, TILE-4);
     }
   });
 
   // Enemies
   map.enemies.forEach((en, i) => {
-    const px = en.x * TILE + 4, py = en.y * TILE + 4;
+    const px = en.x * TILE, py = en.y * TILE;
     const def = project.enemyTypes[en.type];
-    ctx.fillStyle = def ? def.color : '#e55';
-    // Draw diamond
+    const col = def ? def.color : '#e55';
+    // diamond shape
+    ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.moveTo(px+12, py); ctx.lineTo(px+24, py+12);
-    ctx.lineTo(px+12, py+24); ctx.lineTo(px, py+12);
+    ctx.moveTo(px+16, py+4); ctx.lineTo(px+28, py+16);
+    ctx.lineTo(px+16, py+28); ctx.lineTo(px+4, py+16);
     ctx.closePath(); ctx.fill();
+    // border
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px+16, py+4); ctx.lineTo(px+28, py+16);
+    ctx.lineTo(px+16, py+28); ctx.lineTo(px+4, py+16);
+    ctx.closePath(); ctx.stroke();
+    // label
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 9px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(en.type.slice(0,3), px+12, py+15);
+    ctx.font = 'bold 8px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(en.type.slice(0,4).toUpperCase(), px+16, py+17);
+    // selection
     if (ed.selType === 'enemy' && ed.selIndex === i) {
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-      ctx.strokeRect(en.x*TILE+1, en.y*TILE+1, TILE-2, TILE-2);
+      ctx.strokeRect(px+1, py+1, TILE-2, TILE-2);
     }
   });
 
@@ -533,36 +467,183 @@ function drawEntities() {
     ctx.beginPath();
     ctx.roundRect(px, py, w, h, 4);
     ctx.fill();
+    // border
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(px, py, w, h, 4); ctx.stroke();
+    // name initial
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(npc.name ? npc.name[0] : '?', px + w/2, py + h/2 + 4);
-    // Direction indicator
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(npc.name ? npc.name[0].toUpperCase() : '?', px + w/2, py + h/2);
+    // direction indicator
     const cx = px + w/2, cy = py + h/2;
-    ctx.fillStyle = 'rgba(255,255,255,.7)';
-    if (npc.dir === 0) ctx.fillRect(cx-2, py+h-2, 4, 3);      // down
-    else if (npc.dir === 1) ctx.fillRect(px-1, cy-2, 3, 4);    // left
-    else if (npc.dir === 2) ctx.fillRect(px+w-2, cy-2, 3, 4);  // right
-    else if (npc.dir === 3) ctx.fillRect(cx-2, py-1, 4, 3);    // up
-
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    if (npc.dir === 0) ctx.fillRect(cx-3, py+h-2, 6, 3);       // down
+    else if (npc.dir === 1) ctx.fillRect(px-1, cy-3, 3, 6);     // left
+    else if (npc.dir === 2) ctx.fillRect(px+w-2, cy-3, 3, 6);   // right
+    else if (npc.dir === 3) ctx.fillRect(cx-3, py-1, 6, 3);     // up
+    // selection
     if (ed.selType === 'npc' && ed.selIndex === i) {
       ctx.strokeStyle = '#e8c170'; ctx.lineWidth = 2;
       ctx.strokeRect(npc.x*TILE, npc.y*TILE, TILE, TILE);
     }
   });
+}
 
-  // Exit tile indicators
-  const m = curMap();
-  for (const dir of ['north','south','east','west']) {
-    const exitTiles = m.exitTiles[dir] || [];
-    if (!exitTiles.length) continue;
-    ctx.fillStyle = 'rgba(39,174,96,.35)';
-    for (const idx of exitTiles) {
-      if (dir === 'north') ctx.fillRect(idx*TILE, 0, TILE, TILE);
-      else if (dir === 'south') ctx.fillRect(idx*TILE, (ROWS-1)*TILE, TILE, TILE);
-      else if (dir === 'west') ctx.fillRect(0, idx*TILE, TILE, TILE);
-      else if (dir === 'east') ctx.fillRect((COLS-1)*TILE, idx*TILE, TILE, TILE);
+function drawGrassBg(ctx, x, y, px, py) {
+  ctx.fillStyle = (x+y)%2 ? '#4a7a3b' : '#3d6b31';
+  ctx.fillRect(px, py, TILE, TILE);
+}
+
+function drawSingleTile(ctx, type, x, y, px, py) {
+  const info = TILE_INFO[type] || TILE_INFO[0];
+
+  // Tiles that need grass underneath (overlay tiles)
+  const grassOverlay = new Set([4, 17, 18, 24]);
+  if (grassOverlay.has(type)) {
+    drawGrassBg(ctx, x, y, px, py);
+  } else if (type === 5) {
+    // door gets path background
+    ctx.fillStyle = '#c4a55a'; ctx.fillRect(px, py, TILE, TILE);
+  } else if (type === 19) {
+    // bridge gets water background
+    ctx.fillStyle = '#3b6d9e'; ctx.fillRect(px, py, TILE, TILE);
+  } else if (type === 12) {
+    // stalagmite gets cave floor
+    ctx.fillStyle = (x+y)%2 ? '#3a3530' : '#342f2a'; ctx.fillRect(px, py, TILE, TILE);
+  } else if (type === 14) {
+    // bones gets dungeon floor
+    ctx.fillStyle = (x+y)%2 ? '#4a4540' : '#3e3a35'; ctx.fillRect(px, py, TILE, TILE);
+  } else {
+    // Standard base color
+    if (info.color2 && (x+y)%2) {
+      ctx.fillStyle = info.color2;
+    } else {
+      ctx.fillStyle = info.color;
     }
+    ctx.fillRect(px, py, TILE, TILE);
+  }
+
+  switch(type) {
+    case 0: // grass tufts
+      if ((x*7+y*13)%11 < 3) { ctx.fillStyle = '#3d6b31'; ctx.fillRect(px+8,py+22,2,5); ctx.fillRect(px+14,py+20,2,6); ctx.fillRect(px+20,py+23,2,4); }
+      break;
+    case 1: // wall bricks
+      ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(px, py+TILE-4, TILE, 4);
+      ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.lineWidth = 1;
+      ctx.strokeRect(px+1, py+1, TILE/2-1, TILE/2-1);
+      ctx.strokeRect(px+TILE/2, py+TILE/2, TILE/2-1, TILE/2-1);
+      break;
+    case 2: // water shimmer
+      ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(px+4, py+10, 12, 3);
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(px+14, py+20, 10, 2);
+      break;
+    case 3: // path specks
+      ctx.fillStyle = 'rgba(0,0,0,0.06)';
+      if ((x+y*3)%5===0) ctx.fillRect(px+6,py+10,4,3);
+      if ((x*2+y)%7===0) ctx.fillRect(px+16,py+20,5,3);
+      break;
+    case 4: // tree (grass bg already drawn)
+      ctx.fillStyle = '#6b4226'; ctx.fillRect(px+13, py+18, 6, 14);
+      ctx.fillStyle = '#2d5a1e';
+      ctx.beginPath(); ctx.arc(px+16, py+12, 14, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,50,0,0.25)';
+      ctx.beginPath(); ctx.arc(px+13, py+10, 7, 0, Math.PI*2); ctx.fill();
+      break;
+    case 5: // door (path bg already drawn)
+      ctx.fillStyle = '#5a3a1a'; ctx.fillRect(px+4, py+2, 24, 28);
+      ctx.fillStyle = '#e8c170'; ctx.fillRect(px+20, py+14, 4, 4);
+      ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(px+4, py+2, 24, 3);
+      break;
+    case 6: // roof lines
+      ctx.fillStyle = 'rgba(0,0,0,0.08)';
+      for (let i = 0; i < TILE; i += 8) ctx.fillRect(px, py+i, TILE, 1);
+      ctx.fillStyle = 'rgba(0,0,0,0.05)'; ctx.fillRect(px, py+TILE-2, TILE, 2);
+      break;
+    case 7: // sand
+      if ((x*5+y*3)%9<2) { ctx.fillStyle = 'rgba(0,0,0,0.04)'; ctx.beginPath(); ctx.arc(px+10+((x*7)%12), py+12+((y*5)%10), 3, 0, Math.PI*2); ctx.fill(); }
+      break;
+    case 8: // dungeon floor
+      ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 1; ctx.strokeRect(px+1, py+1, TILE-2, TILE-2);
+      break;
+    case 9: // lava glow
+      ctx.fillStyle = 'rgba(255,200,0,0.3)'; ctx.fillRect(px+2, py+6, 14, 6);
+      ctx.fillStyle = 'rgba(255,100,0,0.2)'; ctx.fillRect(px+12, py+18, 12, 5);
+      break;
+    case 10: // cave floor
+      if ((x*3+y*7)%9<2) { ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(px+4, py+4, 8, 6); }
+      break;
+    case 11: // cave wall shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(px, py+TILE-6, TILE, 6);
+      ctx.fillStyle = 'rgba(100,80,60,0.12)'; ctx.fillRect(px+3, py+5, 10, 6);
+      break;
+    case 12: // stalagmite spike (cave floor bg already drawn)
+      ctx.fillStyle = '#2a2520';
+      ctx.beginPath(); ctx.moveTo(px+10, py+TILE); ctx.lineTo(px+16, py+4); ctx.lineTo(px+22, py+TILE); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(px+15, py+8, 2, 12);
+      break;
+    case 13: // dungeon wall
+      ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(px, py+TILE-5, TILE, 5);
+      ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 1;
+      ctx.strokeRect(px+2, py+2, TILE-4, TILE/2-2);
+      break;
+    case 14: // bones (dungeon floor bg already drawn)
+      ctx.fillStyle = '#c8c0b0';
+      ctx.fillRect(px+6, py+14, 14, 3); ctx.fillRect(px+10, py+10, 3, 10);
+      ctx.beginPath(); ctx.arc(px+12, py+10, 4, 0, Math.PI*2); ctx.fill();
+      break;
+    case 15: // snow
+      if ((x*3+y*11)%8<2) { ctx.fillStyle = 'rgba(200,210,255,0.3)'; ctx.beginPath(); ctx.arc(px+8+((x*7)%16), py+10+((y*5)%12), 2, 0, Math.PI*2); ctx.fill(); }
+      break;
+    case 16: // ice
+      ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(px+3, py+5, 10, 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(px+16, py+18, 8, 3);
+      break;
+    case 17: // pine tree (grass bg already drawn)
+      ctx.fillStyle = '#6b4226'; ctx.fillRect(px+14, py+22, 4, 10);
+      ctx.fillStyle = '#1a5028';
+      ctx.beginPath(); ctx.moveTo(px+16, py+2); ctx.lineTo(px+26, py+16); ctx.lineTo(px+6, py+16); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(px+16, py+8); ctx.lineTo(px+28, py+24); ctx.lineTo(px+4, py+24); ctx.fill();
+      break;
+    case 18: // flowers (grass bg already drawn)
+      const fc = ['#e55','#e8e','#ee5','#5be','#f90'];
+      for (let i = 0; i < 4; i++) {
+        const fx = px+6+((x*7+i*11)%20), fy = py+6+((y*5+i*13)%20);
+        ctx.fillStyle = fc[(x+y+i)%fc.length];
+        ctx.beginPath(); ctx.arc(fx, fy, 3, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#2d5a1e'; ctx.fillRect(fx-0.5, fy+3, 1.5, 4);
+      }
+      break;
+    case 19: // bridge (water bg already drawn)
+      ctx.fillStyle = '#8b6914'; ctx.fillRect(px, py+2, TILE, TILE-4);
+      ctx.fillStyle = 'rgba(0,0,0,0.1)';
+      ctx.fillRect(px, py+10, TILE, 2); ctx.fillRect(px, py+20, TILE, 2);
+      break;
+    case 20: // dark grass
+      if ((x*9+y*3)%7<2) { ctx.fillStyle = 'rgba(0,40,0,0.2)'; ctx.fillRect(px+6,py+18,3,8); ctx.fillRect(px+18,py+16,3,10); }
+      break;
+    case 21: // cobblestone
+      ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+      ctx.strokeRect(px+1, py+1, 14, 14); ctx.strokeRect(px+16, py+1, 14, 14);
+      ctx.strokeRect(px+8, py+16, 14, 14);
+      break;
+    case 22: // carpet
+      ctx.strokeStyle = '#c4a55a'; ctx.lineWidth = 1; ctx.strokeRect(px+2, py+2, TILE-4, TILE-4);
+      break;
+    case 23: // bookshelf
+      const bc = ['#8b3030','#3050a0','#2a7030','#8b6014','#604080'];
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 4; col++) {
+          ctx.fillStyle = bc[(x+y+row+col)%bc.length];
+          ctx.fillRect(px+2+col*7, py+2+row*10, 6, 8);
+        }
+      }
+      break;
+    case 24: // fence (grass bg already drawn)
+      ctx.fillStyle = '#b89a6a';
+      ctx.fillRect(px, py+10, TILE, 3); ctx.fillRect(px, py+20, TILE, 3);
+      ctx.fillRect(px+4, py+6, 3, 20); ctx.fillRect(px+25, py+6, 3, 20);
+      break;
   }
 }
 
@@ -630,9 +711,9 @@ function buildPalette() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TOOL MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════════════
-function setTool(tool) {
+function setTool(tool, keepSelection) {
   ed.tool = tool;
-  ed.selType = null; ed.selIndex = -1;
+  if (!keepSelection) { ed.selType = null; ed.selIndex = -1; }
   document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
   document.querySelectorAll('[data-place]').forEach(b => b.classList.remove('active'));
   if (tool.startsWith('place_')) {
@@ -735,8 +816,7 @@ function placeNpc(x, y) {
   const map = curMap();
   map.npcs.push({ x, y, name:'NPC', color:'#7eb8da', dir:0, dialogue:['Hello!'], npcType:'normal' });
   ed.selType = 'npc'; ed.selIndex = map.npcs.length - 1;
-  setTool('select');
-  updateProperties(); render();
+  setTool('select', true);
 }
 
 function placeEnemy(x, y) {
@@ -744,8 +824,7 @@ function placeEnemy(x, y) {
   const firstType = Object.keys(project.enemyTypes)[0] || 'slime';
   map.enemies.push({ x, y, type: firstType });
   ed.selType = 'enemy'; ed.selIndex = map.enemies.length - 1;
-  setTool('select');
-  updateProperties(); render();
+  setTool('select', true);
 }
 
 function placeItem(x, y) {
@@ -753,8 +832,7 @@ function placeItem(x, y) {
   const firstItem = Object.keys(project.items)[0] || 'herb';
   map.items.push({ x, y, item: firstItem });
   ed.selType = 'item'; ed.selIndex = map.items.length - 1;
-  setTool('select');
-  updateProperties(); render();
+  setTool('select', true);
 }
 
 function placeDoorPortal(x, y) {
@@ -765,8 +843,7 @@ function placeDoorPortal(x, y) {
   const targetMap = maps[0] || ed.currentMap;
   project.doorPortals[ed.currentMap].push({ x, y, map: targetMap, spawnX:9, spawnY:9, locked:false, unlockFlag:'', lockedMsg:'' });
   ed.selType = 'doorPortal'; ed.selIndex = project.doorPortals[ed.currentMap].length - 1;
-  setTool('select');
-  updateProperties(); render();
+  setTool('select', true);
 }
 
 function deleteSelected() {
@@ -853,8 +930,7 @@ function updateEntityList() {
     el.addEventListener('click', () => {
       ed.selType = el.dataset.type;
       ed.selIndex = parseInt(el.dataset.idx);
-      setTool('select');
-      updateProperties(); render();
+      setTool('select', true);
     });
   });
 }
@@ -975,14 +1051,60 @@ function renderEnemyProps() {
   html += `<label>Type</label><select id="propEnemyType">${typeKeys.map(k=>`<option value="${k}" ${en.type===k?'selected':''}>${project.enemyTypes[k].name} (${k})</option>`).join('')}</select>`;
   html += `<div class="row"><div><label>X</label><input type="number" id="propEnemyX" value="${en.x}" min="0" max="19"></div>`;
   html += `<div><label>Y</label><input type="number" id="propEnemyY" value="${en.y}" min="0" max="14"></div></div>`;
+  html += '</div>';
+
   const def = project.enemyTypes[en.type];
   if (def) {
-    html += '<h4>Type Stats</h4>';
-    html += `<div style="font-size:11px;color:var(--text2)">HP:${def.hp} ATK:${def.atk} XP:${def.xp} SPD:${def.speed}</div>`;
+    const diff = getDifficultyLabel(def);
+    const dps = (def.atk * def.speed).toFixed(1);
+    const threat = Math.round(def.hp * def.atk * def.speed);
+
+    html += '<h3>Type Stats</h3><div class="prop-group">';
+    html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">`;
+    html += `<span style="font-size:11px;padding:2px 8px;border-radius:3px;background:${diff.color};color:#fff;font-weight:700">${diff.label}</span>`;
+    html += `<span style="font-size:11px;color:var(--text2)">Threat: ${threat}</span>`;
+    html += '</div>';
+
+    // Stat bars for visual representation
+    const maxHP = 100, maxATK = 10, maxSPD = 2.0;
+    html += '<div style="margin-bottom:6px">';
+    html += renderStatBar('HP', def.hp, maxHP, '#e74c3c');
+    html += renderStatBar('ATK', def.atk, maxATK, '#e67e22');
+    html += renderStatBar('SPEED', def.speed, maxSPD, '#3498db');
+    html += renderStatBar('XP', def.xp, 150, '#f1c40f');
+    html += '</div>';
+
+    html += `<div style="font-size:10px;color:var(--text2);margin-top:4px">`;
+    html += `DPS: <strong>${dps}</strong> · `;
+    html += `Hits to kill (base ATK 2): <strong>${Math.ceil(def.hp/2)}</strong> · `;
+    html += `Drops: <strong>${(def.drops||[]).join(', ')||'none'}</strong>`;
+    html += '</div>';
+
+    // Quick difficulty adjustment
+    html += '<label>Quick Adjust</label>';
+    html += '<div style="display:flex;gap:4px;flex-wrap:wrap">';
+    for (const [key, p] of Object.entries(DIFFICULTY_PRESETS)) {
+      html += `<button class="quickPreset" data-preset="${key}" style="font-size:10px;padding:2px 6px" title="${p.desc}">${p.label}</button>`;
+    }
+    html += '</div>';
+
+    html += '</div>';
   }
-  html += '</div>';
-  html += `<div style="margin-top:16px"><button class="danger" id="deleteEntity">Delete Enemy</button></div>`;
+
+  html += `<div style="margin-top:12px"><button class="primary" id="editEnemyType" style="width:100%;margin-bottom:6px">Edit All Enemy Types</button></div>`;
+  html += `<div><button class="danger" id="deleteEntity" style="width:100%">Delete Enemy</button></div>`;
   return html;
+}
+
+function renderStatBar(label, value, max, color) {
+  const pct = Math.min(100, (value / max) * 100);
+  return `<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px">
+    <span style="font-size:9px;color:var(--text2);width:36px;text-align:right">${label}</span>
+    <div style="flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
+      <div style="width:${pct}%;height:100%;background:${color};border-radius:4px"></div>
+    </div>
+    <span style="font-size:10px;color:var(--text);width:30px">${value}</span>
+  </div>`;
 }
 
 function renderItemProps() {
@@ -1126,6 +1248,21 @@ function bindPropsEvents() {
     bindSelect('propEnemyType', v => { en.type = v; updateProperties(); render(); });
     bindNumber('propEnemyX', v => { en.x = v; render(); });
     bindNumber('propEnemyY', v => { en.y = v; render(); });
+    // Quick preset buttons in properties panel
+    panel.querySelectorAll('.quickPreset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const p = DIFFICULTY_PRESETS[btn.dataset.preset];
+        if (!p) return;
+        const def = project.enemyTypes[en.type];
+        if (def) {
+          def.hp = p.hp; def.atk = p.atk; def.xp = p.xp; def.speed = p.speed;
+          updateProperties(); render();
+        }
+      });
+    });
+    // Edit All Enemy Types button
+    const editBtn = document.getElementById('editEnemyType');
+    if (editBtn) editBtn.addEventListener('click', showEnemyDefs);
   }
 
   // Item props
@@ -1322,26 +1459,113 @@ function showItemDefs() {
 }
 
 // --- Enemy Type Definitions ---
+// Difficulty presets for quick enemy tuning
+const DIFFICULTY_PRESETS = {
+  fodder:   { hp:5,  atk:1, xp:5,   speed:0.6, label:'Fodder',   desc:'Weak trash mob, dies fast' },
+  easy:     { hp:8,  atk:2, xp:10,  speed:0.8, label:'Easy',     desc:'Standard early-game enemy' },
+  medium:   { hp:15, atk:3, xp:20,  speed:0.9, label:'Medium',   desc:'Mid-game challenge' },
+  hard:     { hp:22, atk:5, xp:35,  speed:1.0, label:'Hard',     desc:'Late-game threat' },
+  elite:    { hp:35, atk:6, xp:50,  speed:1.1, label:'Elite',    desc:'Powerful elite enemy' },
+  miniboss: { hp:50, atk:7, xp:80,  speed:0.5, label:'Mini-Boss', desc:'Slow but devastating' },
+  boss:     { hp:80, atk:8, xp:150, speed:0.4, label:'Boss',     desc:'End-game boss encounter' },
+  swarm:    { hp:3,  atk:1, xp:3,   speed:1.4, label:'Swarm',    desc:'Very fast, very fragile' },
+  tank:     { hp:40, atk:3, xp:40,  speed:0.3, label:'Tank',     desc:'Extremely slow, huge HP' },
+  berserker:{ hp:12, atk:8, xp:45,  speed:1.2, label:'Berserker',desc:'Glass cannon, fast & deadly' },
+};
+
+function getDifficultyLabel(en) {
+  if (en.hp >= 60) return { label:'BOSS', color:'#e74c3c' };
+  if (en.hp >= 35) return { label:'ELITE', color:'#e67e22' };
+  if (en.hp >= 20) return { label:'HARD', color:'#f1c40f' };
+  if (en.hp >= 12) return { label:'MEDIUM', color:'#3498db' };
+  if (en.hp >= 6)  return { label:'EASY', color:'#27ae60' };
+  return { label:'FODDER', color:'#95a5a6' };
+}
+
 function showEnemyDefs() {
-  let html = '<p style="font-size:11px;color:var(--text2);margin-bottom:8px">Define enemy types. The ID should match a built-in sprite: ' + ENEMY_SPRITES.join(', ') + '</p>';
-  html += '<table><tr><th>ID/Sprite</th><th>Name</th><th>Color</th><th>HP</th><th>ATK</th><th>XP</th><th>Speed</th><th>Drops</th><th></th></tr>';
-  for (const [id, en] of Object.entries(project.enemyTypes)) {
-    html += `<tr data-enemy="${id}">`;
-    html += `<td><select class="eId" data-old="${id}">${ENEMY_SPRITES.map(s=>`<option ${id===s?'selected':''}>${s}</option>`).join('')}<option ${!ENEMY_SPRITES.includes(id)?'selected':''} value="${id}">${ENEMY_SPRITES.includes(id)?'':'custom: '+id}</option></select></td>`;
-    html += `<td><input class="eName" value="${esc(en.name)}"></td>`;
-    html += `<td><input type="color" class="eColor" value="${en.color}"></td>`;
-    html += `<td><input type="number" class="eHP" value="${en.hp}" min="1"></td>`;
-    html += `<td><input type="number" class="eATK" value="${en.atk}" min="0"></td>`;
-    html += `<td><input type="number" class="eXP" value="${en.xp}" min="0"></td>`;
-    html += `<td><input type="number" class="eSpd" value="${en.speed}" min="0.1" max="3" step="0.1" style="width:50px"></td>`;
-    html += `<td><input class="eDrops" value="${(en.drops||[]).join(',')}" placeholder="herb,potion" style="width:80px"></td>`;
-    html += `<td><button class="danger eDel" style="padding:2px 6px">×</button></td>`;
-    html += '</tr>';
+  const itemKeys = Object.keys(project.items);
+  let html = '<p style="font-size:11px;color:var(--text2);margin-bottom:8px">Define enemy types. Sprite ID must match a built-in: ' + ENEMY_SPRITES.join(', ') + '</p>';
+
+  // Preset buttons
+  html += '<div style="margin-bottom:10px"><span style="font-size:11px;color:var(--text2);margin-right:6px">Quick presets:</span>';
+  for (const [key, p] of Object.entries(DIFFICULTY_PRESETS)) {
+    html += `<button class="preset-btn" data-preset="${key}" style="font-size:10px;padding:2px 6px;margin:1px" title="${p.desc}">${p.label}</button>`;
   }
-  html += '</table>';
+  html += '</div>';
+
+  for (const [id, en] of Object.entries(project.enemyTypes)) {
+    const diff = getDifficultyLabel(en);
+    const dps = (en.atk * en.speed).toFixed(1);
+    const threat = Math.round(en.hp * en.atk * en.speed);
+
+    html += `<div class="enemy-card" data-enemy="${id}" style="border:1px solid var(--border);border-left:3px solid ${diff.color};border-radius:4px;padding:10px;margin-bottom:8px;background:rgba(0,0,0,.15)">`;
+    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">`;
+    html += `<select class="eId" data-old="${id}" style="width:90px">${ENEMY_SPRITES.map(s=>`<option ${id===s?'selected':''}>${s}</option>`).join('')}<option ${!ENEMY_SPRITES.includes(id)?'selected':''} value="${id}">${ENEMY_SPRITES.includes(id)?'':'custom: '+id}</option></select>`;
+    html += `<input class="eName" value="${esc(en.name)}" style="flex:1;font-weight:600">`;
+    html += `<input type="color" class="eColor" value="${en.color}" style="width:32px;height:26px;padding:0;border:none">`;
+    html += `<span style="font-size:10px;padding:2px 6px;border-radius:3px;background:${diff.color};color:#fff;font-weight:700">${diff.label}</span>`;
+    html += `<button class="danger eDel" style="padding:2px 8px" title="Delete this enemy type">×</button>`;
+    html += '</div>';
+
+    // Stats row
+    html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">';
+    html += `<div><label style="margin:0">HP</label><input type="number" class="eHP" value="${en.hp}" min="1" max="999"></div>`;
+    html += `<div><label style="margin:0">ATK</label><input type="number" class="eATK" value="${en.atk}" min="0" max="99"></div>`;
+    html += `<div><label style="margin:0">XP Reward</label><input type="number" class="eXP" value="${en.xp}" min="0" max="999"></div>`;
+    html += `<div><label style="margin:0">Speed</label><input type="number" class="eSpd" value="${en.speed}" min="0.1" max="3" step="0.1"><div style="font-size:9px;color:var(--text2);margin-top:1px">0.3=slow 0.8=normal 1.5=fast</div></div>`;
+    html += '</div>';
+
+    // Drops row
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">';
+    html += `<div><label style="margin:0">Drops (items)</label><input class="eDrops" value="${(en.drops||[]).join(',')}" placeholder="herb,potion"></div>`;
+    html += `<div><label style="margin:0">Difficulty preset</label><select class="ePreset" style="width:100%"><option value="">-- apply preset --</option>${Object.entries(DIFFICULTY_PRESETS).map(([k,p])=>`<option value="${k}">${p.label} — ${p.desc}</option>`).join('')}</select></div>`;
+    html += '</div>';
+
+    // Computed stats bar
+    html += `<div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--text2)">`;
+    html += `<span>DPS: <strong style="color:var(--text)">${dps}</strong></span>`;
+    html += `<span>Threat: <strong style="color:${diff.color}">${threat}</strong></span>`;
+    html += `<span>Hits to kill (2 ATK): <strong style="color:var(--text)">${Math.ceil(en.hp/2)}</strong></span>`;
+    html += `<span>Hits to kill (5 ATK): <strong style="color:var(--text)">${Math.ceil(en.hp/5)}</strong></span>`;
+    html += '</div>';
+
+    html += '</div>';
+  }
+
   html += '<button class="success" id="mAddEnemy" style="margin-top:8px">+ Add Enemy Type</button>';
 
   openModal('Enemy Type Definitions', html, '<button class="primary" id="mEnemySave">Save</button>', true);
+
+  // Apply preset to last-added / focused card
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = DIFFICULTY_PRESETS[btn.dataset.preset];
+      if (!p) return;
+      // Apply to all cards that have the preset dropdown set, or the last card
+      const cards = document.querySelectorAll('.enemy-card');
+      const lastCard = cards[cards.length - 1];
+      if (lastCard) {
+        lastCard.querySelector('.eHP').value = p.hp;
+        lastCard.querySelector('.eATK').value = p.atk;
+        lastCard.querySelector('.eXP').value = p.xp;
+        lastCard.querySelector('.eSpd').value = p.speed;
+      }
+    });
+  });
+
+  // Per-card preset dropdown
+  document.querySelectorAll('.ePreset').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const p = DIFFICULTY_PRESETS[sel.value];
+      if (!p) return;
+      const card = sel.closest('.enemy-card');
+      card.querySelector('.eHP').value = p.hp;
+      card.querySelector('.eATK').value = p.atk;
+      card.querySelector('.eXP').value = p.xp;
+      card.querySelector('.eSpd').value = p.speed;
+      sel.value = '';
+    });
+  });
 
   document.getElementById('mAddEnemy').addEventListener('click', () => {
     const available = ENEMY_SPRITES.filter(s => !project.enemyTypes[s]);
@@ -1352,7 +1576,7 @@ function showEnemyDefs() {
 
   document.querySelectorAll('.eDel').forEach(btn => {
     btn.addEventListener('click', () => {
-      const id = btn.closest('tr').dataset.enemy;
+      const id = btn.closest('.enemy-card').dataset.enemy;
       delete project.enemyTypes[id];
       showEnemyDefs();
     });
@@ -1360,17 +1584,17 @@ function showEnemyDefs() {
 
   document.getElementById('mEnemySave').addEventListener('click', () => {
     const newTypes = {};
-    document.querySelectorAll('#modalBody tr[data-enemy]').forEach(tr => {
-      const sel = tr.querySelector('.eId');
-      const newId = sel.value.trim() || tr.dataset.enemy;
+    document.querySelectorAll('.enemy-card[data-enemy]').forEach(card => {
+      const sel = card.querySelector('.eId');
+      const newId = sel.value.trim() || card.dataset.enemy;
       newTypes[newId] = {
-        name: tr.querySelector('.eName').value,
-        color: tr.querySelector('.eColor').value,
-        hp: parseInt(tr.querySelector('.eHP').value) || 10,
-        atk: parseInt(tr.querySelector('.eATK').value) || 2,
-        xp: parseInt(tr.querySelector('.eXP').value) || 10,
-        speed: parseFloat(tr.querySelector('.eSpd').value) || 0.8,
-        drops: tr.querySelector('.eDrops').value.split(',').map(s=>s.trim()).filter(Boolean),
+        name: card.querySelector('.eName').value,
+        color: card.querySelector('.eColor').value,
+        hp: parseInt(card.querySelector('.eHP').value) || 10,
+        atk: parseInt(card.querySelector('.eATK').value) || 2,
+        xp: parseInt(card.querySelector('.eXP').value) || 10,
+        speed: parseFloat(card.querySelector('.eSpd').value) || 0.8,
+        drops: card.querySelector('.eDrops').value.split(',').map(s=>s.trim()).filter(Boolean),
       };
     });
     project.enemyTypes = newTypes;
@@ -1419,6 +1643,50 @@ function showWinCondition() {
   });
 }
 
+// --- Colors Editor ---
+function showColors() {
+  const c = project.colors;
+  const groups = [
+    { label:'Terrain', keys:['grass','grass2','path','water','wall','roof','door','tree','trunk','sand','sand2','lava','snow','snow2','ice','pine','caveFloor','caveFloor2','caveWall','dungeonFloor','dungeonFloor2','dungeonWall','darkGrass','darkGrass2','cobble','carpet','carpetBorder','wood','fence','bridge'] },
+    { label:'UI', keys:['player','uiBorder','hpFill','hpBg','mpFill','xpFill','white'] },
+  ];
+  let html = '<p style="font-size:11px;color:var(--text2);margin-bottom:8px">Customize the game\'s color palette. These colors are used by tiles and UI elements.</p>';
+  for (const g of groups) {
+    html += `<h4 style="margin-top:12px">${g.label}</h4><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px 8px">`;
+    for (const key of g.keys) {
+      const val = c[key] || '';
+      if (val.startsWith('rgba')) {
+        html += `<div><label style="margin:0;font-size:10px">${key}</label><input class="cColor" data-key="${key}" value="${val}" style="width:100%;font-size:10px"></div>`;
+      } else {
+        html += `<div><label style="margin:0;font-size:10px">${key}</label><div style="display:flex;gap:2px"><input type="color" class="cPick" data-key="${key}" value="${val||'#000000'}" style="width:28px;height:22px;padding:0;border:none"><input class="cColor" data-key="${key}" value="${val}" style="flex:1;font-size:10px"></div></div>`;
+      }
+    }
+    html += '</div>';
+  }
+  openModal('Color Palette', html, '<button id="mColorReset" class="danger">Reset Defaults</button> <button class="primary" id="mColorSave">Save</button>', true);
+
+  // Sync color picker ↔ text input
+  document.querySelectorAll('.cPick').forEach(pick => {
+    pick.addEventListener('input', () => {
+      const txt = document.querySelector(`.cColor[data-key="${pick.dataset.key}"]`);
+      if (txt) txt.value = pick.value;
+    });
+  });
+
+  document.getElementById('mColorSave').addEventListener('click', () => {
+    document.querySelectorAll('.cColor').forEach(inp => {
+      if (inp.value.trim()) project.colors[inp.dataset.key] = inp.value.trim();
+    });
+    closeModal();
+  });
+
+  document.getElementById('mColorReset').addEventListener('click', () => {
+    const def = createDefaultProject().colors;
+    project.colors = { ...def };
+    showColors();
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXPORT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1434,6 +1702,7 @@ function generateExport() {
   // Build config object
   const cfg = {};
   cfg.title = project.title;
+  cfg.colors = { ...project.colors };
   cfg.solidTiles = solidTiles;
   cfg.treeTiles = treeTiles;
   cfg.player = { ...project.player };
@@ -1503,6 +1772,30 @@ function configToJs(cfg, indent) {
     .replace(/"(\w+)":/g, '$1:')                         // unquote keys
     .replace(/:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/g, (m, v) => // single-quote string values
       ": '" + v.replace(/\\"/g, '"').replace(/'/g, "\\'") + "'");
+}
+
+function playProject() {
+  const cfg = generateExport();
+  const cfgStr = configToJs(cfg, 2);
+  const engineUrl = new URL('rpg-engine.js', window.location.href).href;
+  const gameHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${project.title}</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#111;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden}canvas{image-rendering:pixelated;border:2px solid #333}</style>
+</head><body><canvas id="game"></canvas>
+<script src="${engineUrl}"><\/script>
+<script>
+RPG.create(${cfgStr});
+<\/script></body></html>`;
+
+  const win = window.open('', '_blank');
+  if (win) {
+    win.document.open();
+    win.document.write(gameHtml);
+    win.document.close();
+  } else {
+    alert("Popup blocked! Please allow popups to play the game.");
+  }
 }
 
 function showExport() {
@@ -1733,8 +2026,10 @@ document.getElementById('btnDelMap').addEventListener('click', deleteMap);
 document.getElementById('btnPlayer').addEventListener('click', showPlayerSettings);
 document.getElementById('btnItemDefs').addEventListener('click', showItemDefs);
 document.getElementById('btnEnemyDefs').addEventListener('click', showEnemyDefs);
+document.getElementById('btnColors').addEventListener('click', showColors);
 document.getElementById('btnWinCond').addEventListener('click', showWinCondition);
 document.getElementById('btnExport').addEventListener('click', showExport);
+document.getElementById('btnPlay').addEventListener('click', playProject);
 document.getElementById('btnSave').addEventListener('click', saveProject);
 document.getElementById('btnLoad').addEventListener('click', loadProject);
 document.getElementById('modalClose').addEventListener('click', closeModal);
