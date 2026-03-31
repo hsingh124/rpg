@@ -104,7 +104,7 @@ enemyTypes: {
   assassin: {
     name:'Shadow Assassin', color:'#8833aa', hp:25, atk:5, xp:40, speed:1.5, drops:['herb'],
     canDash: true,        // enables dash attack (like player's E key)
-    dashDist: 3,          // max tiles per dash (2-6, default 3)
+    dashDist: 3,          // max tiles per dash (2-20, default 3)
     dashCooldown: 1.0,    // seconds between dashes (default 1.5)
     chaseDistance: 0,      // 0 = infinite chase (default 5)
   },
@@ -131,7 +131,8 @@ enemyTypes: {
 - `ranged` — enemy fires projectiles when on the same row/column with line of sight
 - `chaseDistance` — how far the enemy detects the player (default 5 tiles, `0` = infinite)
 - Ranged attacks fire independently of movement speed — even slow enemies shoot quickly
-- Dashes trigger when the enemy is within `dashDist + 1` tiles and cooldown is ready
+- Dashes trigger when the enemy is within dash range or chase range and cooldown is ready
+- Set `dashDist` up to 20 for bosses that lunge across the entire map
 - All abilities stack — a single enemy can dash, shoot, AND chase from any distance
 - Super enemies show ability indicators above their name: ⚡ (dash), 🏹 (ranged), 👁 (infinite chase)
 

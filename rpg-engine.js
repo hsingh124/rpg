@@ -868,7 +868,7 @@ const RPG = {
         const inChaseRange = chaseRange === 0 ? (dist > 0) : (dist <= chaseRange && dist > 0);
 
         // Dash attack: when in dash range
-        if (et.canDash && e.dashCooldown <= 0 && dist >= 2 && dist <= (et.dashDist || 3) + 1) {
+        if (et.canDash && e.dashCooldown <= 0 && dist >= 2 && (dist <= (et.dashDist || 3) + 1 || inChaseRange)) {
           if (Math.abs(distX) >= Math.abs(distY)) {
             e.dir = distX > 0 ? 2 : 1;
           } else {
