@@ -1,0 +1,55 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oakwood Village</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#111;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden}canvas{image-rendering:pixelated;border:2px solid #333}</style>
+</head><body><canvas id="game"></canvas>
+<script src="../rpg-engine.js"></script>
+<script>
+RPG.create({
+  title: 'Oakwood Village Adventure',
+  colors: {
+    grass:'#4a7a3b', grass2:'#3d6b31', path:'#c4a55a', water:'#3b6d9e',
+    wall:'#7a6652', roof:'#8b3a3a', door:'#5a3a1a', tree:'#2d5a1e', trunk:'#6b4226',
+    player:'#e8c170', uiBorder:'#e8c170',
+    hpFill:'#e74c3c', hpBg:'#555', mpFill:'#3498db', xpFill:'#f1c40f', white:'#fff',
+  },
+  solidTiles: [1, 2, 4, 6, 24],
+  treeTiles: [4],
+  player: { name:'Hero', x:1, y:7, hp:20, mp:10, atk:2 },
+  combat: { dash:true, gun:false },
+  startMap: 'village',
+  maps: {
+    village: {
+      name: 'Oakwood Village',
+      tiles: [
+        [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+        [4,0,0,0,18,0,0,0,0,0,0,0,0,18,0,0,0,0,0,4],
+        [4,0,6,6,6,0,0,6,6,6,0,0,6,6,6,0,0,18,0,4],
+        [4,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,4],
+        [4,0,1,5,1,0,0,1,5,1,0,0,1,5,1,0,0,0,0,4],
+        [4,0,0,3,0,0,0,0,3,0,0,0,0,3,0,0,0,18,0,4],
+        [0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0],
+        [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],
+        [0,0,0,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,0],
+        [4,0,0,3,0,0,0,0,3,0,0,0,0,3,0,0,0,18,0,4],
+        [4,0,6,6,6,0,0,6,6,6,0,0,6,6,6,0,0,0,0,4],
+        [4,0,1,1,1,0,0,1,1,1,0,0,1,1,1,0,0,0,0,4],
+        [4,0,1,5,1,0,0,1,5,1,0,0,1,5,1,0,0,0,0,4],
+        [4,0,0,18,0,0,0,0,0,0,0,0,0,0,0,18,0,0,0,4],
+        [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]
+      ],
+      npcs: [
+        { x:6, y:7, name:'Mayor', color:'#7eb8da', dir:1,
+          dialogue:["Welcome to Oakwood!", "It's a quiet day today.", "Feel free to look around."] },
+        { x:12, y:8, name:'Villager', color:'#da7e7e', dir:0, wander:true, wanderRadius:2, speed:1,
+          dialogue:["The air is so fresh here.", "I love our little road."] }
+      ],
+      exits: {},
+      exitTiles: {},
+      items: [],
+      enemies: []
+    }
+  },
+  doorPortals: {},
+});
+</script></body></html>

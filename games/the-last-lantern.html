@@ -1,0 +1,193 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Last Lantern</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#111;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden}canvas{image-rendering:pixelated;border:2px solid #333}</style>
+</head><body><canvas id="game"></canvas>
+<script src="rpg-engine.js"></script>
+<script>
+RPG.create({
+  title: 'The Last Lantern',
+
+  colors: {
+    grass:'#3a8a6b', grass2:'#2d7b5e', path:'#c4a070', water:'#2a5585',
+    wall:'#7a6a82', roof:'#5a3a7a', door:'#4a2a5a', tree:'#1a6a4e', trunk:'#5a3a1a',
+    sand:'#d4b96a', sand2:'#c8a85a',
+    darkGrass:'#1a5a4a', darkGrass2:'#124a3e',
+    caveFloor:'#2a2545', caveFloor2:'#241f3a', caveWall:'#1a1530',
+    carpet:'#7a2060', carpetBorder:'#c4a55a',
+    wood:'#5a3a1a', fence:'#b89a6a',
+    pine:'#0a4a28', snow:'#e0e0f0',
+    player:'#ffe0a0', shadow:'rgba(0,0,0,0.2)', uiBorder:'#b890e0',
+    hpFill:'#e06070', hpBg:'#444', mpFill:'#60a0e0', xpFill:'#e0c060', white:'#fff',
+  },
+
+  solidTiles: [1, 2, 4, 6, 9, 11, 12, 13, 23, 24],
+  treeTiles: [4],
+
+  player: { name:'Liora', x:9, y:9, hp:22, mp:8, atk:2 },
+  combat: { dash:true, gun:false },
+  startMap: 'haven_village',
+
+  winCondition: {
+    item: 'lantern_crystal',
+    title: 'THE LANTERN SHINES AGAIN!',
+    message: 'Liora restored the Lantern Crystal! Light returns to Haven, and the darkness fades forever.',
+  },
+
+  items: {
+    herb:            { name:'Moonpetal',      color:'#7acca0', icon:'herb',  desc:'A glowing petal. Heals 5 HP.', heal:5 },
+    crystal_blade:   { name:'Crystal Blade',  color:'#90c0e8', icon:'sword', desc:'A luminous blade. +4 ATK.', weapon:true, atk:4 },
+    cave_key:        { name:'Cave Key',       color:'#c8a0e8', icon:'key',   desc:'Opens the sealed cave mouth.' },
+    lantern_crystal: { name:'Lantern Crystal', color:'#e8d0ff', icon:'gem',   desc:'The heart of the Last Lantern!' },
+  },
+
+  enemyTypes: {
+    slime:  { name:'Gloom Slime',    color:'#5aaa8a', hp:8,  atk:2, xp:10, speed:0.8, drops:['herb'] },
+    wolf:   { name:'Shadow Wolf',    color:'#5a5a72', hp:14, atk:3, xp:18, speed:0.7, drops:['herb'] },
+    bat:    { name:'Cave Bat',       color:'#4a3a6a', hp:10, atk:2, xp:12, speed:1.2, drops:['herb'] },
+    spider: { name:'Crystal Spider', color:'#4a3a4a', hp:12, atk:3, xp:15, speed:0.9, drops:['herb'] },
+    rat:    { name:'Deep Rat',       color:'#7a6a5a', hp:6,  atk:1, xp:6,  speed:1.1, drops:['herb'] },
+    wraith: {
+      name:'Wraith King', color:'#7a5aaa', hp:45, atk:5, xp:80, speed:1.5, drops:['herb'],
+      canDash: true, dashDist: 4, dashCooldown: 1.0,
+      ranged: true, rangedCooldown: 1.5, rangedDmg: 4, rangedColor: '#aa55ff',
+      chaseDistance: 0,
+    },
+  },
+
+  maps: {
+    // ---- HAVEN VILLAGE ----
+    haven_village: {
+      name: 'Haven Village',
+      tiles: [
+        [4,4,4,4,4,4,4,4,0,0,4,4,4,4,4,4,4,4,4,4],
+        [4,0,18,0,0,0,0,0,0,0,0,0,0,0,0,18,0,0,0,4],
+        [4,0,0,6,6,6,0,0,0,0,0,0,0,6,6,6,0,0,0,4],
+        [4,0,0,1,5,1,0,0,18,0,18,0,1,1,1,0,0,0,0,4],
+        [4,0,0,1,22,1,0,0,0,0,0,0,1,23,1,0,0,0,0,4],
+        [4,0,0,0,3,0,0,0,0,0,0,0,0,3,0,0,0,0,0,4],
+        [4,18,0,0,3,3,3,3,3,3,3,3,3,3,0,0,18,0,0,4],
+        [4,0,0,0,0,0,0,3,0,0,0,3,0,0,0,0,0,0,0,4],
+        [4,0,0,0,0,0,0,3,0,0,0,3,0,0,0,0,0,0,0,4],
+        [4,0,0,0,0,0,0,3,0,18,0,3,0,0,0,0,0,0,0,4],
+        [4,0,0,0,18,0,0,3,0,0,0,3,0,0,18,0,0,0,0,4],
+        [4,0,0,0,0,0,0,3,3,3,3,3,0,0,0,0,0,0,0,4],
+        [4,0,18,0,0,0,0,0,0,0,0,0,0,0,0,0,18,0,0,4],
+        [4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4],
+        [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+      ],
+      npcs: [
+        { x:8, y:7, name:'Elder Mira', color:'#c8a0e8', dir:0,
+          questGive: { flag:'has_cave_key', item:'cave_key' },
+          dialogue:[
+            "Liora... the Lantern Crystal has been stolen.",
+            "A Wraith King emerged from the Crystal Caverns and took it.",
+            "Without the crystal, the Last Lantern will die within the day.",
+            "Take this key — it opens the sealed cave mouth in the Twilight Woods.",
+            "The forest path is to the north. Please hurry.",
+          ]},
+        { x:11, y:7, name:'Kael', color:'#90c0e8', dir:1, trader:true,
+          trades:[{ give:'herb', giveQty:3, receive:'crystal_blade', receiveQty:1 }],
+          dialogue:[
+            "I forge weapons from luminous stone.",
+            "Bring me 3 Moonpetals and I'll craft you a Crystal Blade!",
+          ]},
+        { x:9, y:9, name:'Nara', color:'#a0d8b0', dir:3,
+          dialogue:[
+            "The woods to the north have grown dark and restless.",
+            "I've heard howling at night... be careful out there.",
+            "There's a cave mouth hidden among the rocks at the forest's end.",
+          ]},
+        { x:3, y:12, name:'Pip', color:'#e8c090', dir:0,
+          wander: true, wanderRadius: 4, speed: 2, pauseTime: 2,
+          dialogue:[
+            "The lantern on the hill is getting dimmer...",
+            "I'm scared of the dark. Please fix it, Liora!",
+          ]},
+      ],
+      exits: { north: { map:'twilight_woods', spawnX:9, spawnY:13 } },
+      exitTiles: { north:[8,9] },
+      items: [{ x:2, y:12, item:'herb' }, { x:16, y:12, item:'herb' }],
+      enemies: [],
+    },
+
+    // ---- TWILIGHT WOODS ----
+    twilight_woods: {
+      name: 'Twilight Woods',
+      tiles: [
+        [4,4,4,4,4,4,4,11,11,5,11,11,4,4,4,4,4,4,4,4],
+        [4,20,20,0,0,0,0,10,10,10,10,10,0,0,0,0,20,20,20,4],
+        [4,20,0,0,18,0,0,0,0,0,0,0,0,18,0,0,0,20,20,4],
+        [4,0,0,0,0,0,4,0,0,0,0,0,4,0,0,0,0,0,0,4],
+        [4,20,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,20,4],
+        [4,0,0,4,0,0,0,2,2,0,2,2,0,0,0,0,0,0,0,4],
+        [4,20,0,0,0,0,2,2,2,0,2,2,2,0,0,0,0,18,0,4],
+        [4,0,18,0,0,0,0,2,2,0,2,2,0,0,0,0,0,0,0,4],
+        [4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,20,4],
+        [4,20,0,0,4,0,0,0,18,0,18,0,0,0,0,0,0,0,4],
+        [4,20,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,20,4],
+        [4,0,0,0,0,4,0,0,0,0,0,0,0,4,0,0,0,20,20,4],
+        [4,20,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,20,4],
+        [4,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,4],
+        [4,4,4,4,4,4,4,4,0,0,4,4,4,4,4,4,4,4,4,4],
+      ],
+      npcs: [],
+      exits: {
+        south: { map:'haven_village', spawnX:9, spawnY:1 },
+      },
+      exitTiles: { south:[8,9] },
+      items: [{ x:9, y:5, item:'herb' }, { x:3, y:10, item:'herb' }],
+      enemies: [
+        { x:4, y:4, type:'slime' }, { x:14, y:3, type:'slime' },
+        { x:10, y:8, type:'wolf' }, { x:3, y:7, type:'slime' },
+        { x:16, y:9, type:'wolf' },
+      ],
+    },
+
+    // ---- CRYSTAL CAVERNS ----
+    crystal_caverns: {
+      name: 'Crystal Caverns',
+      tiles: [
+        [11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11],
+        [11,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,11],
+        [11,10,10,12,10,10,10,10,10,10,10,10,10,10,10,12,10,10,10,11],
+        [11,10,10,10,10,11,11,10,10,10,10,10,11,11,10,10,10,10,10,11],
+        [11,10,10,10,10,11,10,10,10,10,10,10,10,11,10,10,10,10,10,11],
+        [11,10,10,10,10,11,10,10,10,10,10,10,10,11,10,10,10,10,10,11],
+        [11,11,11,10,10,10,10,10,10,10,10,10,10,10,10,10,11,11,11,11],
+        [11,10,10,10,10,10,10,10,10,22,22,10,10,10,10,10,10,10,10,11],
+        [11,10,10,12,10,10,10,10,22,22,22,22,10,10,10,10,12,10,10,11],
+        [11,10,10,10,10,10,10,10,10,22,22,10,10,10,10,10,10,10,10,11],
+        [11,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,11],
+        [11,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,11],
+        [11,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,11],
+        [11,10,10,10,10,10,10,10,10,5,10,10,10,10,10,10,10,10,10,11],
+        [11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11],
+      ],
+      npcs: [],
+      exits: {},
+      exitTiles: {},
+      items: [
+        { x:2, y:11, item:'herb' }, { x:17, y:11, item:'herb' },
+        { x:9, y:9, item:'lantern_crystal' },
+      ],
+      enemies: [
+        { x:2, y:2, type:'rat' }, { x:17, y:2, type:'rat' },
+        { x:3, y:5, type:'spider' }, { x:16, y:5, type:'spider' },
+        { x:2, y:10, type:'bat' }, { x:17, y:10, type:'bat' },
+        { x:10, y:7, type:'wraith' },
+      ],
+    },
+  },
+
+  doorPortals: {
+    twilight_woods: [
+      { x:9, y:0, map:'crystal_caverns', spawnX:9, spawnY:12,
+        locked:true, unlockFlag:'has_cave_key', lockedMsg:"The cave mouth is sealed by ancient magic." },
+    ],
+    crystal_caverns: [
+      { x:9, y:13, map:'twilight_woods', spawnX:9, spawnY:1, locked:false },
+    ],
+  },
+});
+</script></body></html>

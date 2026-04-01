@@ -1,0 +1,119 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Village of Eldergrove</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#111;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden}canvas{image-rendering:pixelated;border:2px solid #333}</style>
+</head><body><canvas id="game"></canvas>
+<script src="../rpg-engine.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  VILLAGE OF ELDERGROVE
+//  A peaceful village with 6 houses and a road through the middle
+//
+//  Map layout (20 cols x 15 rows):
+//    - Tree border around the edges
+//    - Central dirt road runs vertically (cols 9-10)
+//    - 3 houses on the LEFT side (rows 2-5)
+//    - 3 houses on the RIGHT side (rows 8-12)
+//    - Flowers, fences, and gardens for decoration
+//
+//  Tile legend:
+//    0=grass  1=wall  3=path  4=tree  5=door  6=roof
+//   18=flowers  22=carpet  24=fence
+// ═══════════════════════════════════════════════════════════════
+
+RPG.create({
+  title: 'Village of Eldergrove',
+
+  colors: {
+    grass:'#5a9a4b', grass2:'#4a8a3b', path:'#c4a870', water:'#3a7ab0',
+    wall:'#8a7a62', roof:'#a04040', door:'#5a3a1a', tree:'#2d6a2e', trunk:'#6b4a2a',
+    sand:'#d4b96a', sand2:'#c8a85a',
+    darkGrass:'#3a6a32', darkGrass2:'#2a5a22',
+    caveFloor:'#3a3530', caveFloor2:'#342f2a', caveWall:'#2a2520',
+    carpet:'#8b3050', carpetBorder:'#c4a55a',
+    wood:'#6b4a2a', fence:'#b89a6a',
+    pine:'#1a5028', snow:'#e0e0f0',
+    player:'#ffe0a0', shadow:'rgba(0,0,0,0.2)', uiBorder:'#e8c170',
+    hpFill:'#e06070', hpBg:'#444', mpFill:'#60a0e0', xpFill:'#e0c060', white:'#fff',
+  },
+
+  solidTiles: [1, 2, 4, 6, 9, 11, 12, 13, 23, 24],
+  treeTiles: [4],
+
+  player: { name:'Hero', x:9, y:12, hp:20, mp:10, atk:2 },
+  combat: { dash:true, gun:false },
+  startMap: 'village',
+
+  winCondition: {
+    item: 'golden_coin',
+    title: 'VILLAGE SAVED!',
+    message: 'The hero restored peace to Eldergrove Village!',
+  },
+
+  items: {
+    herb:     { name:'Herb',         color:'#5cb85c', icon:'herb',  desc:'A fresh herb. Heals 5 HP.', heal:5 },
+    apple:    { name:'Apple',        color:'#e05050', icon:'herb',  desc:'A red apple from the orchard. Heals 3 HP.', heal:3 },
+    golden_coin: { name:'Golden Coin', color:'#ffd700', icon:'coin', desc:'A mysterious golden coin radiating warmth.' },
+  },
+
+  enemyTypes: {
+    slime:  { name:'Goo Slime',  color:'#5aaa8a', hp:6,  atk:1, xp:8,  speed:0.7, drops:['herb'] },
+    rat:    { name:'Field Rat',  color:'#7a6a5a', hp:4,  atk:1, xp:5,  speed:1.0, drops:['herb'] },
+  },
+
+  maps: {
+    village: {
+      name: 'Eldergrove Village',
+      tiles: [
+        //  col: 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
+        /*  0 */ [  4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+        /*  1 */ [  4, 0,18, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0,18, 4],
+        /*  2 */ [  4, 0, 0, 6, 6, 6, 0, 0, 0, 3, 3, 0, 0, 6, 6, 6, 0, 0, 0, 4],
+        /*  3 */ [  4, 0, 0, 1,22, 1, 0, 0, 0, 3, 3, 0, 0, 1,22, 1, 0, 0, 0, 4],
+        /*  4 */ [  4, 0, 0, 1,22, 1, 0,18, 0, 3, 3, 0, 0, 1,22, 1, 0, 0, 0, 4],
+        /*  5 */ [  4, 0, 0, 1, 5, 1, 0, 0, 0, 3, 3, 0, 0, 1, 5, 1, 0, 0, 0, 4],
+        /*  6 */ [  4, 0,18, 0, 3, 0, 0, 0, 0, 3, 3, 0, 0, 0, 3, 0, 0,18, 0, 4],
+        /*  7 */ [  4, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 4],
+        /*  8 */ [  4, 0, 0, 6, 6, 6, 0, 0, 0, 3, 3, 0, 0, 6, 6, 6, 0, 0, 0, 4],
+        /*  9 */ [  4, 0, 0, 1,22, 1, 0, 0, 0, 3, 3, 0, 0, 1,22, 1, 0, 0, 0, 4],
+        /* 10 */ [  4, 0, 0, 1,22, 1, 0,18, 0, 3, 3, 0, 0, 1,22, 1, 0, 0, 0, 4],
+        /* 11 */ [  4, 0, 0, 1, 5, 1, 0, 0, 0, 3, 3, 0, 0, 1, 5, 1, 0, 0, 0, 4],
+        /* 12 */ [  4, 0,18, 0, 3, 0, 0, 0, 0, 3, 3, 0, 0, 0, 3, 0, 0,18, 0, 4],
+        /* 13 */ [  4, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 4],
+        /* 14 */ [  4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+      ],
+      npcs: [
+        { x:8, y:7, name:'Elder Mira', color:'#c8a0e8', dir:2,
+          dialogue:[
+            "Welcome to Eldergrove Village, young hero.",
+            "Our village has stood here for a hundred years.",
+            "Six families call this peaceful place home.",
+          ]},
+        { x:11, y:7, name:'Kael', color:'#90c0e8', dir:1, trader:true,
+          trades:[{ give:'herb', giveQty:2, receive:'apple', receiveQty:3 }],
+          dialogue:[
+            "I trade herbs for fresh apples from the orchard.",
+            "Bring me 2 herbs and I'll give you 3 apples!",
+          ]},
+        { x:9, y:13, name:'Pip', color:'#e8c090', dir:0,
+          wander: true, wanderRadius: 3, speed: 2, pauseTime: 2,
+          dialogue:[
+            "The village road leads north and south.",
+            "I like wandering around the houses!",
+          ]},
+      ],
+      exits: {},
+      exitTiles: {},
+      items: [
+        { x:2, y:1, item:'herb' },
+        { x:17, y:1, item:'herb' },
+        { x:2, y:13, item:'apple' },
+        { x:17, y:13, item:'apple' },
+      ],
+      enemies: [],
+    },
+  },
+
+  doorPortals: {},
+});
+</script></body></html>
